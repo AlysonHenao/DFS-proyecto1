@@ -1,0 +1,84 @@
+  # DFSha - docker-compose de desarrollo (todo en una maquina).
+# Uso:  cp .env.example .env && docker compose up --build
+# El cliente corre DENTRO de la red de compose, porque los DataNodes anuncian
+# direcciones como datanode1:50051 (no resolubles desde el host):
+#   docker compose run --rm client dfsha put ./archivo.bin /archivo.bin
+#
+# En las VMs: ControlNodes en modo leader/follower y DataNodes repartidos
+# y DATANODE_ADDR = <IP publica de la VM>:<puerto>.
+
+x-datanode: &datanode
+  build: ../datanode
+  env_file: .env
+  depends_on: [control-leader]
+  restart: unless-stopped
+
+services:
+  control-leader:
+    build: ../controlnode
+    env_file: .env
+    environment:
+      CONTROLNODE_ID: control-leader
+      CONTROLNODE_ROLE: leader
+      CONTROL_PEER_GRPC_ADDR: control-follower:50050
+    ports:
+      - "8000:8000"     # REST
+      - "50050:50050"   # gRPC interno (heartbeat)
+    volumes:
+      - cn_leader_data:/data
+    restart: unless-stopped
+
+  control-follower:
+    build: ../controlnode
+    env_file: .env
+    environment:
+      CONTROLNODE_ID: control-follower
+      CONTROLNODE_ROLE: follower
+      CONTROL_PEER_GRPC_ADDR: control-leader:50050
+    ports:
+      - "8001:8000"     # REST (standby; no se usa mientras sea follower)
+      - "50051:50050"   # gRPC de replicacion
+    volumes:
+      - cn_follower_data:/data
+    restart: unless-stopped
+
+  datanode1:
+    <<: *datanode
+    depends_on: [control-leader]
+    environment:
+      DATANODE_ID: dn1
+      DATANODE_ADDR: datanode1:50051
+      CONTROL_GRPC_ADDR: control-leader:50050
+    volumes: [dn1_data:/data]
+
+  datanode2:
+    <<: *datanode
+    depends_on: [control-leader]
+    environment:
+      DATANODE_ID: dn2
+      DATANODE_ADDR: datanode2:50051
+      CONTROL_GRPC_ADDR: control-leader:50050
+    volumes: [dn2_data:/data]
+
+  datanode3:
+    <<: *datanode
+    depends_on: [control-leader]
+    environment:
+      DATANODE_ID: dn3
+      DATANODE_ADDR: datanode3:50051
+      CONTROL_GRPC_ADDR: control-leader:50050
+    volumes: [dn3_data:/data]
+
+  client:
+    build: ../client
+    env_file: .env
+    profiles: ["tools"]   # no arranca con `up`; se usa con `run`
+    volumes:
+      - ../:/work
+
+volumes:
+  cn_leader_data:
+  cn_follower_data:
+  dn1_data:
+  dn2_data:
+  dn3_data:
