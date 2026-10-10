@@ -1,0 +1,11 @@
+syntax = "proto3";
+package dfsha;
+service DataNode {
+  rpc WriteBlock(stream WriteBlockChunk) returns (WriteBlockReply);
+  rpc ReadBlock(ReadBlockRequest) returns (stream BlockChunk);
+}
+message WriteBlockHeader { string block_id = 1; repeated string chain = 2; }
+message WriteBlockChunk { oneof payload { WriteBlockHeader header = 1; bytes data = 2; } }
+message WriteBlockReply { bool ok = 1; repeated string stored_on = 2; string error = 3; }
+message ReadBlockRequest { string block_id = 1; }
+message BlockChunk { bytes data = 1; }
