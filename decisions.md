@@ -5,7 +5,7 @@ con **dos ControlNodes de metadatos (leader/follower)** y 3 DataNodes.
 
 | # | Decisión | Por qué |
 |---|---|---|
-| 1 | Bloques de **8 MB**, configurable (`BLOCK_SIZE_BYTES`); el tamaño usado se guarda por archivo | Equilibrio entre overhead por bloque, memoria (AES-GCM necesita el bloque completo) y reparto visible |
+| 1 | Bloques de **8 MB** en producción y **64 KiB** en desarrollo, configurables mediante `BLOCK_SIZE_BYTES`; el tamaño usado se guarda por archivo | Permite pruebas con archivos pequeños sin cambiar el diseño de producción |
 | 2 | **N = 2** réplicas por bloque, 3 DataNodes; **W = 2** (por confirmar) | Cada bloque en 2 de 3 nodos: se aguanta la caída de 1 DataNode |
 | 3 | Archivos **WORM** (inmutables; se reemplazan completos) | Elimina conflictos de actualización parcial |
 | 4 | Un archivo es visible (`ls`) solo cuando todos sus bloques tienen ≥ W confirmaciones | Visibilidad atómica |
