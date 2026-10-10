@@ -8,14 +8,14 @@
 # y DATANODE_ADDR = <IP publica de la VM>:<puerto>.
 
 x-datanode: &datanode
-  build: ../datanode
+  build: ./datanode
   env_file: .env
   depends_on: [control-leader]
   restart: unless-stopped
 
 services:
   control-leader:
-    build: ../controlnode
+    build: ./controlnode
     env_file: .env
     environment:
       CONTROLNODE_ID: control-leader
@@ -29,7 +29,7 @@ services:
     restart: unless-stopped
 
   control-follower:
-    build: ../controlnode
+    build: ./controlnode
     env_file: .env
     environment:
       CONTROLNODE_ID: control-follower
@@ -70,11 +70,11 @@ services:
     volumes: [dn3_data:/data]
 
   client:
-    build: ../client
+    build: ./client
     env_file: .env
     profiles: ["tools"]   # no arranca con `up`; se usa con `run`
     volumes:
-      - ../:/work
+      - ./:/work
 
 volumes:
   cn_leader_data:

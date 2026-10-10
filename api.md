@@ -29,6 +29,10 @@ Errores (JSON `{"detail": "..."}`): `401` sin/invalid token · `404` no existe �
 | DELETE | `/fs/rmdir?path=` | Solo si está vacío | `204` · `409` no vacío |
 | DELETE | `/fs/file?path=` | `rm`: borra metadatos; los DataNodes borran los bloques huérfanos vía heartbeat | `204` |
 
+El cliente CLI expone estas operaciones mediante `mkdir`, `ls`, `rm` y
+`rmdir`. El script `scripts/smoke_test.ps1` ejecuta una prueba de integración
+de RF1 y RF2 en Windows.
+
 ## Transferencia (RF2)
 
 Archivos WORM: no se actualizan; para reemplazar, `rm` y luego `put`.
