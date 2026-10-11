@@ -24,7 +24,8 @@ con **dos ControlNodes de metadatos (leader/follower)** y 3 DataNodes.
 | 17 | Despliegue: **docker-compose** en 2-3 VMs | Requisito de infraestructura |
 | 18 | Los ControlNodes operan en modo **activo/standby**: `leader` atiende REST, asigna planes y recibe heartbeats; `follower` mantiene una copia de metadatos y no acepta escrituras | Evita dos líderes simultáneos y permite failover controlado |
 | 19 | La replicación de metadatos es **leader → follower**, incluyendo SQLite mediante snapshots consistentes; el follower se promueve manualmente cambiando su rol | Failover explícito, sin split-brain ni elección automática fuera del alcance |
-| 20 | El cliente usa `DFSHA_CONTROL_URL` como endpoint del líder; tras promover el follower se actualiza ese endpoint y se reinician los clientes | Mantiene el contrato REST simple |
+| 20 | El cliente usa `DFSHA_CONTROL_URL` como endpoint del líder; tras promover el follower solo se actualiza esa variable. La CLI la lee en cada comando, por lo que no requiere reiniciarse | Mantiene el contrato REST simple |
+| 21 | Cada DataNode envía heartbeat a todos los ControlNodes configurados; solo el leader devuelve comandos. Los DELETE se mueven primero a una papelera y se purgan tras `TRASH_RETENTION_S` | Tolera failover y evita perder bloques válidos por metadatos atrasados |
 
 Limitaciones asumidas (mencionar en el informe): el failover del ControlNode es
 manual y puede perder las operaciones posteriores al último snapshot; no hay
@@ -52,7 +53,9 @@ solo se entregan al dueño). La llave maestra es compartida por todos los usuari
 | `DB_PATH` | `/data/meta.db` | Cada ControlNode |
 | `CONTROL_PEER_GRPC_ADDR` | `control-follower:50050` | Leader, para replicar metadatos |
 | `CONTROL_LEADER_URL` | `http://control-leader:8000` | Follower y clientes |
-| `CONTROL_GRPC_ADDR` | `control-leader:50050` | DataNode |
+| `CONTROL_GRPC_ADDRS` | `control-leader:50050,control-follower:50050` | DataNode |
+| `CONTROL_GRPC_ADDR` | (obsoleta) | DataNode, compatibilidad |
+| `TRASH_RETENTION_S` | `600` | DataNode |
 | `DATANODE_ID` | `dn1` | DataNode |
 | `DATANODE_ADDR` | `datanode1:50051` | DataNode (dirección que anuncia) |
 | `DATANODE_PORT` | `50051` | DataNode |

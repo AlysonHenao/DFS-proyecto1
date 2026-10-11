@@ -15,7 +15,7 @@ x-datanode: &datanode
 
 services:
   control-leader:
-    build: ./controlnode
+    build: ./mock/controlnode
     env_file: .env
     environment:
       CONTROLNODE_ID: control-leader
@@ -29,7 +29,7 @@ services:
     restart: unless-stopped
 
   control-follower:
-    build: ./controlnode
+    build: ./mock/controlnode
     env_file: .env
     environment:
       CONTROLNODE_ID: control-follower
@@ -48,7 +48,7 @@ services:
     environment:
       DATANODE_ID: dn1
       DATANODE_ADDR: datanode1:50051
-      CONTROL_GRPC_ADDR: control-leader:50050
+      CONTROL_GRPC_ADDRS: control-leader:50050,control-follower:50050
     volumes: [dn1_data:/data]
 
   datanode2:
@@ -57,7 +57,7 @@ services:
     environment:
       DATANODE_ID: dn2
       DATANODE_ADDR: datanode2:50051
-      CONTROL_GRPC_ADDR: control-leader:50050
+      CONTROL_GRPC_ADDRS: control-leader:50050,control-follower:50050
     volumes: [dn2_data:/data]
 
   datanode3:
@@ -66,7 +66,7 @@ services:
     environment:
       DATANODE_ID: dn3
       DATANODE_ADDR: datanode3:50051
-      CONTROL_GRPC_ADDR: control-leader:50050
+      CONTROL_GRPC_ADDRS: control-leader:50050,control-follower:50050
     volumes: [dn3_data:/data]
 
   client:

@@ -2,6 +2,6 @@ FROM python:3.11-slim
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-COPY dfsha.proto server.py service.py storage.py replication.py chunks.py ./
+COPY dfsha.proto server.py service.py storage.py replication.py chunks.py heartbeat.py config.py ./
 RUN python -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. dfsha.proto
 CMD ["python", "server.py"]

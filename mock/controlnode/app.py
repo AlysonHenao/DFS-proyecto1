@@ -13,6 +13,7 @@ from models import (
     PathRequest,
     PlanRequest,
 )
+from grpc_server import start_grpc_server
 
 BLOCK_SIZE = int(os.getenv("BLOCK_SIZE_BYTES", "65536"))
 REPLICATION_FACTOR = int(os.getenv("REPLICATION_FACTOR", "2"))
@@ -24,6 +25,7 @@ app = FastAPI(title="DFSha Mock ControlNode")
 files: dict[str, dict[str, Any]] = {}
 directories: set[str] = {"/"}
 tokens: dict[str, str] = {}
+grpc_server = None
 
 
 def normalize_path(path: str) -> str:
@@ -45,6 +47,18 @@ def check_token(token: str | None) -> None:
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.on_event("startup")
+def start_internal_grpc() -> None:
+    global grpc_server
+    grpc_server = start_grpc_server()
+
+
+@app.on_event("shutdown")
+def stop_internal_grpc() -> None:
+    if grpc_server is not None:
+        grpc_server.stop(grace=1)
 
 
 @app.post("/auth/login")
