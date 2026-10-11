@@ -3,7 +3,7 @@ from typing import Any
 import requests
 
 from auth import AuthSession
-from config import CONTROL_URL, REQUEST_TIMEOUT
+from config import REQUEST_TIMEOUT, control_url
 
 #Clase ControlClient maneja las operaciones de control del cliente DFS, incluyendo la
 # planificación y confirmación de cargas y descargas de archivos, así como la gestión
@@ -17,11 +17,15 @@ class ControlClient:
     def request(self, method: str, path: str, **kwargs) -> requests.Response:
         response = requests.request(
             method,
-            f"{CONTROL_URL}{path}",
+            f"{control_url()}{path}",
             headers=self.auth.headers(),
             timeout=REQUEST_TIMEOUT,
             **kwargs,
         )
+        if response.status_code == 503:
+            raise RuntimeError(
+                "El ControlNode no es leader; actualiza DFSHA_CONTROL_URL"
+            )
         response.raise_for_status()
         return response
 
