@@ -1,11 +1,96 @@
+// DFSha - contrato gRPC (H0).
+// Cambios solo por PR revisado por ambos; regenerar stubs con `make proto`.
+//
+// Autenticacion (metadatos gRPC):
+//   Cliente   -> DataNode : authorization: Bearer <JWT del login>
+//   DataNode  -> DataNode : x-api-key: <CLUSTER_API_KEY>
+//   DataNode  -> Control  : x-api-key: <CLUSTER_API_KEY>
+// Un DataNode acepta una llamada si trae un JWT valido O la API key correcta.
 syntax = "proto3";
 package dfsha;
+
+// ---------- DataNode (puerto DATANODE_PORT, por defecto 50051) ----------
 service DataNode {
+  // Cliente -> DN1 -> DN2 (pipeline store-and-forward).
+  // Primer mensaje: header. Siguientes: data (chunks de CHUNK_SIZE_BYTES).
+  // El DN cifra (AES-GCM) y guarda el bloque; si quedan nodos en `chain`,
+  // lo reenvia al primero de ellos y espera su respuesta antes de responder.
   rpc WriteBlock(stream WriteBlockChunk) returns (WriteBlockReply);
+
+  // Lee el bloque, lo descifra y lo entrega en chunks.
   rpc ReadBlock(ReadBlockRequest) returns (stream BlockChunk);
 }
-message WriteBlockHeader { string block_id = 1; repeated string chain = 2; }
-message WriteBlockChunk { oneof payload { WriteBlockHeader header = 1; bytes data = 2; } }
-message WriteBlockReply { bool ok = 1; repeated string stored_on = 2; string error = 3; }
-message ReadBlockRequest { string block_id = 1; }
-message BlockChunk { bytes data = 1; }
+
+message WriteBlockHeader {
+  string block_id = 1;
+  // Direcciones host:port de los DataNodes que faltan (excluye al actual).
+  repeated string chain = 2;
+}
+
+message WriteBlockChunk {
+  oneof payload {
+    WriteBlockHeader header = 1;
+    bytes data = 2;
+  }
+}
+
+message WriteBlockReply {
+  bool ok = 1;
+  // Direcciones de los nodos que confirmaron haber guardado el bloque
+  // (este nodo + los de la cadena que respondieron ok).
+  repeated string stored_on = 2;
+  string error = 3;
+}
+
+message ReadBlockRequest {
+  string block_id = 1;
+}
+
+message BlockChunk {
+  bytes data = 1;
+}
+
+// ---------- ControlNode interno (puerto CONTROL_GRPC_PORT, por defecto 50050) ----------
+service ControlNodeInternal {
+  // DataNode -> ControlNode cada HEARTBEAT_INTERVAL_S.
+  // Registra el nodo si no existe (upsert) y devuelve comandos pendientes.
+  // Solo el ControlNode con CONTROLNODE_ROLE=leader acepta heartbeats.
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatReply);
+
+  // Leader -> follower: replica un snapshot consistente de los metadatos.
+  // El follower solo acepta este RPC mientras tenga CONTROLNODE_ROLE=follower.
+  rpc ReplicateMetadata(MetadataSnapshot) returns (ReplicationReply);
+}
+
+message MetadataSnapshot {
+  bytes sqlite_snapshot = 1;
+  uint64 generated_at = 2;
+}
+
+message ReplicationReply {
+  bool ok = 1;
+  string error = 2;
+}
+
+message HeartbeatRequest {
+  string node_id = 1;
+  string address = 2;          // host:port anunciado (lo que usaran clientes y otros DN)
+  uint64 free_bytes = 3;
+  uint64 total_bytes = 4;
+  repeated string block_ids = 5;  // bloques que el DataNode tiene almacenados
+}
+
+message Command {
+  enum Type {
+    NONE = 0;
+    DELETE = 1;     // borrar block_id (bloque huerfano: no existe en la BD)
+    REPLICATE = 2;  // copiar block_id a target_address (bloque sub-replicado)
+  }
+  Type type = 1;
+  string block_id = 2;
+  string target_address = 3;  // solo REPLICATE
+}
+
+message HeartbeatReply {
+  repeated Command commands = 1;
+}
