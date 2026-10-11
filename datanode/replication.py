@@ -27,4 +27,3 @@ class BlockReplication:
                 raise RuntimeError(reply.error)
             stored_on.extend(reply.stored_on)
         return stored_on
-
