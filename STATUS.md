@@ -20,12 +20,12 @@ El valor de 64 KiB es solo para desarrollo; producción mantiene 8 MiB.
 
 ## Fase 1: núcleo (put/get con N=2 en 3 DataNodes)
 **Persona A (ControlNode)**
-- [ ] Arranque: crear BD con `schema.sql`, FastAPI + servidor gRPC `Heartbeat`
-- [ ] `register` / `login` (bcrypt + JWT)
-- [ ] `ls`, `mkdir`, `rmdir`, `rm`
-- [ ] `put/plan`, `put/commit`, `put/abort`, `get/plan`
-- [ ] Heartbeat: upsert de nodos, espacio libre, comandos DELETE para huérfanos
-- [ ] Marcar nodos `dead` tras `DEAD_TIMEOUT_S`
+- [x] Arranque: crear BD con `schema.sql`, FastAPI + servidor gRPC `Heartbeat`
+- [x] `register` / `login` (bcrypt + JWT)
+- [x] `ls`, `mkdir`, `rmdir`, `rm`
+- [x] `put/plan`, `put/commit`, `put/abort`, `get/plan`
+- [x] Heartbeat: upsert de nodos, espacio libre, comandos DELETE para huérfanos
+- [x] Marcar nodos `dead` tras `DEAD_TIMEOUT_S`
 
 **Persona B (DataNode + Cliente)**
 - [x] DataNode: `WriteBlock` (guardar + reenviar a la cadena) y `ReadBlock`
@@ -40,8 +40,9 @@ El valor de 64 KiB es solo para desarrollo; producción mantiene 8 MiB.
 - [x] CLI RF1 básico contra el mock: `ls`, `mkdir`, `rm`, `rmdir`
 
 ## Fase 2: resiliencia y red segura
-- [ ] A: re-replicación (comando REPLICATE) · snapshots consistentes periódicos del SQLite del leader al ControlNode follower
+- [x] A: re-replicación (comando REPLICATE) · snapshots consistentes periódicos del SQLite del leader al ControlNode follower · Runbook de 5 pasos para failover (`FAILOVER.md`)
 - [ ] B: `ReplicateBlock` desde el heartbeat · lectura con fallback a otra réplica · TLS + API key
+- [ ] Juntos: demo de matar un DataNode
 - [ ] Juntos: demo de matar un DataNode
 
 ## Fase 3: cierre

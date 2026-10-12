@@ -15,7 +15,7 @@ x-datanode: &datanode
 
 services:
   control-leader:
-    build: ./mock/controlnode
+    build: ./controlnode
     env_file: .env
     environment:
       CONTROLNODE_ID: control-leader
@@ -29,7 +29,7 @@ services:
     restart: unless-stopped
 
   control-follower:
-    build: ./mock/controlnode
+    build: ./controlnode
     env_file: .env
     environment:
       CONTROLNODE_ID: control-follower
