@@ -4,6 +4,7 @@ import dfsha_pb2
 import dfsha_pb2_grpc
 
 from chunks import build_write_chunks
+from tls import channel
 
 
 class BlockReplication:
@@ -18,8 +19,8 @@ class BlockReplication:
     ) -> list[str]:
         stored_on: list[str] = []
         for target in targets:
-            with grpc.insecure_channel(target) as channel:
-                stub = dfsha_pb2_grpc.DataNodeStub(channel)
+            with channel(target) as grpc_channel:
+                stub = dfsha_pb2_grpc.DataNodeStub(grpc_channel)
                 reply = stub.WriteBlock(
                     build_write_chunks(block_id, data, self.chunk_size)
                 )

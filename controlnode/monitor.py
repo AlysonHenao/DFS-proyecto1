@@ -16,6 +16,7 @@ import db
 import dfsha_pb2
 import dfsha_pb2_grpc
 from grpc_server import enqueue_command_for_node
+from tls import channel
 
 LOGGER = logging.getLogger(__name__)
 
@@ -93,8 +94,8 @@ class ClusterMonitor:
         try:
             snapshot_bytes = db.create_snapshot_bytes()
             metadata = (("x-api-key", CLUSTER_API_KEY),) if CLUSTER_API_KEY else ()
-            with grpc.insecure_channel(CONTROL_PEER_GRPC_ADDR) as channel:
-                stub = dfsha_pb2_grpc.ControlNodeInternalStub(channel)
+            with channel(CONTROL_PEER_GRPC_ADDR) as grpc_channel:
+                stub = dfsha_pb2_grpc.ControlNodeInternalStub(grpc_channel)
                 reply = stub.ReplicateMetadata(
                     dfsha_pb2.MetadataSnapshot(
                         sqlite_snapshot=snapshot_bytes,

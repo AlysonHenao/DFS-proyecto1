@@ -1,6 +1,6 @@
 import requests
 
-from config import REQUEST_TIMEOUT, control_url
+from config import REQUEST_TIMEOUT, control_url, tls_verify
 
 #Clase encargada de manejar la sesión de autenticación del cliente DFS, obteniendo y almacenando un token de acceso para realizar solicitudes autenticadas al servidor de control.
 
@@ -13,6 +13,7 @@ class AuthSession:
             f"{control_url()}/auth/login",
             json={"username": "demo", "password": "demo"},
             timeout=REQUEST_TIMEOUT,
+            verify=tls_verify(),
         )
         if response.status_code == 503:
             raise RuntimeError(
