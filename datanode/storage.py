@@ -3,6 +3,11 @@ import time
 from collections.abc import Iterator
 from pathlib import Path
 
+try:
+    from crypto import decrypt, encrypt
+except ModuleNotFoundError:
+    from datanode.crypto import decrypt, encrypt
+
 # Clase BlockStorage maneja el almacenamiento de bloques en el sistema de archivos local, permitiendo guardar y leer bloques de datos en trozos (chunks) de tamaño configurable.
 
 class BlockStorage:
@@ -21,14 +26,17 @@ class BlockStorage:
         if os.path.exists(trash_path):
             os.replace(trash_path, self._block_path(block_id))
         with open(self._block_path(block_id), "wb") as stream:
-            stream.write(data)
+            stream.write(encrypt(data))
 
     def read_block_chunks(self, block_id: str) -> Iterator[bytes]:
-        with open(self._block_path(block_id), "rb") as stream:
-            while chunk := stream.read(self.chunk_size):
-                yield chunk
+        data = decrypt(self._read_encrypted(block_id))
+        for offset in range(0, len(data), self.chunk_size):
+            yield data[offset:offset + self.chunk_size]
 
     def read_block(self, block_id: str) -> bytes:
+        return decrypt(self._read_encrypted(block_id))
+
+    def _read_encrypted(self, block_id: str) -> bytes:
         with open(self._block_path(block_id), "rb") as stream:
             return stream.read()
 
