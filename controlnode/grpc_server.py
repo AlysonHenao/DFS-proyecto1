@@ -11,6 +11,7 @@ from config import CLUSTER_API_KEY, CONTROL_GRPC_PORT, CONTROLNODE_ROLE
 import db
 import dfsha_pb2
 import dfsha_pb2_grpc
+from tls import server_credentials
 
 LOGGER = logging.getLogger(__name__)
 
@@ -99,7 +100,11 @@ def start_grpc_server() -> grpc.Server:
         ControlNodeInternalService(), server
     )
     port = str(CONTROL_GRPC_PORT)
-    server.add_insecure_port(f"[::]:{port}")
+    credentials = server_credentials()
+    if credentials:
+        server.add_secure_port(f"[::]:{port}", credentials)
+    else:
+        server.add_insecure_port(f"[::]:{port}")
     server.start()
     LOGGER.info("ControlNode Internal gRPC server listening on port %s", port)
     return server

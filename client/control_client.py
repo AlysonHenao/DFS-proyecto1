@@ -3,7 +3,7 @@ from typing import Any
 import requests
 
 from auth import AuthSession
-from config import REQUEST_TIMEOUT, control_url
+from config import REQUEST_TIMEOUT, control_url, tls_verify
 
 #Clase ControlClient maneja las operaciones de control del cliente DFS, incluyendo la
 # planificación y confirmación de cargas y descargas de archivos, así como la gestión
@@ -20,6 +20,7 @@ class ControlClient:
             f"{control_url()}{path}",
             headers=self.auth.headers(),
             timeout=REQUEST_TIMEOUT,
+            verify=tls_verify(),
             **kwargs,
         )
         if response.status_code == 503:

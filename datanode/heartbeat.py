@@ -10,6 +10,7 @@ import dfsha_pb2
 import dfsha_pb2_grpc
 from chunks import build_write_chunks
 from config import control_addresses_from_env
+from tls import channel
 from storage import BlockStorage
 
 LOGGER = logging.getLogger(__name__)
@@ -33,8 +34,8 @@ class HeartbeatCommandExecutor:
     def _replicate(self, block_id: str, target: str) -> None:
         data = self.storage.read_block(block_id)
         metadata = (("x-api-key", self.api_key),) if self.api_key else ()
-        with grpc.insecure_channel(target) as channel:
-            reply = dfsha_pb2_grpc.DataNodeStub(channel).WriteBlock(
+        with channel(target) as grpc_channel:
+            reply = dfsha_pb2_grpc.DataNodeStub(grpc_channel).WriteBlock(
                 build_write_chunks(block_id, data, self.chunk_size),
                 metadata=metadata,
                 timeout=5,
@@ -90,8 +91,8 @@ class HeartbeatRunner:
         self.storage.purge_trash(self.retention)
         for address in self.control_addresses:
             try:
-                with grpc.insecure_channel(address) as channel:
-                    reply = dfsha_pb2_grpc.ControlNodeInternalStub(channel).Heartbeat(
+                with channel(address) as grpc_channel:
+                    reply = dfsha_pb2_grpc.ControlNodeInternalStub(grpc_channel).Heartbeat(
                         request, metadata=metadata, timeout=2
                     )
                 for command in reply.commands:

@@ -10,6 +10,7 @@ from heartbeat import HeartbeatRunner
 from replication import BlockReplication
 from service import DataNodeService
 from storage import BlockStorage
+from tls import server_credentials
 
 DATA_DIR = os.getenv("DATANODE_DATA_DIR", "/data")
 ADDRESS = os.getenv("DATANODE_ADDR", "localhost:50051")
@@ -27,7 +28,11 @@ def main():
     replication = BlockReplication(CHUNK_SIZE)
     service = DataNodeService(ADDRESS, storage, replication)
     dfsha_pb2_grpc.add_DataNodeServicer_to_server(service, server)
-    server.add_insecure_port(f"[::]:{PORT}")
+    credentials = server_credentials()
+    if credentials:
+        server.add_secure_port(f"[::]:{PORT}", credentials)
+    else:
+        server.add_insecure_port(f"[::]:{PORT}")
     server.start()
     heartbeat = HeartbeatRunner(
         os.getenv("DATANODE_ID", "dn1"),

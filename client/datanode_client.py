@@ -5,6 +5,8 @@ import grpc
 import dfsha_pb2
 import dfsha_pb2_grpc
 
+from tls import channel
+
 #Clase DataNodeClient proporciona métodos para interactuar con los servicios de DataNode a través de gRPC, permitiendo escribir y leer bloques de datos en el sistema distribuido.
 
 class DataNodeClient:
@@ -17,12 +19,12 @@ class DataNodeClient:
             for offset in range(0, len(data), chunk_size):
                 yield dfsha_pb2.WriteBlockChunk(data=data[offset:offset + chunk_size])
 
-        with grpc.insecure_channel(address) as channel:
-            return dfsha_pb2_grpc.DataNodeStub(channel).WriteBlock(chunks())
+        with channel(address) as grpc_channel:
+            return dfsha_pb2_grpc.DataNodeStub(grpc_channel).WriteBlock(chunks())
 
     def read_block(self, address: str, block_id: str):
-        with grpc.insecure_channel(address) as channel:
-            stream = dfsha_pb2_grpc.DataNodeStub(channel).ReadBlock(
+        with channel(address) as grpc_channel:
+            stream = dfsha_pb2_grpc.DataNodeStub(grpc_channel).ReadBlock(
                 dfsha_pb2.ReadBlockRequest(block_id=block_id)
             )
             yield from stream

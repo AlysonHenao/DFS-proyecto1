@@ -1,11 +1,14 @@
+from __future__ import annotations
+
 import os
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import grpc
 
 from config import CHUNK_SIZE
-from control_client import ControlClient
-from datanode_client import DataNodeClient
+if TYPE_CHECKING:
+    from control_client import ControlClient
+    from datanode_client import DataNodeClient
 
 #Coordina el flujo de transferencia de archivos entre el cliente y los nodos de datos, 
 # manejando la planificación, escritura y lectura de bloques de datos a través del servidor 
@@ -49,9 +52,11 @@ class FileTransfer:
         last_error = None
         for address in block["nodes"]:
             try:
+                data = bytearray()
                 for chunk in self.datanodes.read_block(address, block["block_id"]):
-                    output.write(chunk.data)
+                    data.extend(chunk.data)
+                output.write(data)
                 return
-            except grpc.RpcError as error:
+            except (grpc.RpcError, ValueError) as error:
                 last_error = error
         raise RuntimeError(f"all replicas failed for {block['block_id']}") from last_error

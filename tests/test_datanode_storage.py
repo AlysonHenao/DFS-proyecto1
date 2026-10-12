@@ -1,14 +1,41 @@
+import base64
+import os
 import tempfile
 import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+os.environ["DATANODE_MASTER_KEY"] = base64.b64encode(b"test-key-for-dfs-aes-256-bytes!!").decode()
+
 from datanode.config import control_addresses_from_env
 from datanode.storage import BlockStorage
 
 
 class BlockStorageTrashTests(unittest.TestCase):
+    def test_encrypted_block_round_trip(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            storage = BlockStorage(directory, 4)
+            storage.save_block("block-1", b"secret data")
+            self.assertEqual(storage.read_block("block-1"), b"secret data")
+
+    def test_encrypted_file_does_not_contain_plaintext(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            storage = BlockStorage(directory, 4)
+            storage.save_block("block-1", b"secret data")
+            self.assertNotIn(b"secret data", Path(directory, "block-1").read_bytes())
+
+    def test_tampered_encrypted_block_fails_to_read(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            storage = BlockStorage(directory, 4)
+            storage.save_block("block-1", b"secret data")
+            block_path = Path(directory, "block-1")
+            block = bytearray(block_path.read_bytes())
+            block[-1] ^= 1
+            block_path.write_bytes(block)
+            with self.assertRaises(ValueError):
+                storage.read_block("block-1")
+
     def test_delete_is_deferred_and_rewrite_restores_block(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             storage = BlockStorage(directory, 4)

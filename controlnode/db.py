@@ -16,10 +16,18 @@ LOGGER = logging.getLogger(__name__)
 _LOCK = threading.Lock()
 
 
+class _ManagedConnection(sqlite3.Connection):
+    def __exit__(self, exc_type, exc_value, traceback):
+        try:
+            return super().__exit__(exc_type, exc_value, traceback)
+        finally:
+            self.close()
+
+
 def get_connection(db_path: str = DB_PATH) -> sqlite3.Connection:
     """Creates a new SQLite connection configured with WAL and foreign keys."""
     Path(db_path).parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(db_path, timeout=10.0)
+    conn = sqlite3.connect(db_path, timeout=10.0, factory=_ManagedConnection)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON;")
     conn.execute("PRAGMA journal_mode = WAL;")

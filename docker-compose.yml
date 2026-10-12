@@ -21,11 +21,15 @@ services:
       CONTROLNODE_ID: control-leader
       CONTROLNODE_ROLE: leader
       CONTROL_PEER_GRPC_ADDR: control-follower:50050
+      TLS_CERT: /certs/server.crt
+      TLS_KEY: /certs/server.key
+      TLS_CA: /certs/ca.crt
     ports:
       - "8000:8000"     # REST
       - "50050:50050"   # gRPC interno (heartbeat)
     volumes:
       - cn_leader_data:/data
+      - ./certs:/certs:ro
     restart: unless-stopped
 
   control-follower:
@@ -35,11 +39,15 @@ services:
       CONTROLNODE_ID: control-follower
       CONTROLNODE_ROLE: follower
       CONTROL_PEER_GRPC_ADDR: control-leader:50050
+      TLS_CERT: /certs/server.crt
+      TLS_KEY: /certs/server.key
+      TLS_CA: /certs/ca.crt
     ports:
       - "8001:8000"     # REST (standby; no se usa mientras sea follower)
       - "50051:50050"   # gRPC de replicacion
     volumes:
       - cn_follower_data:/data
+      - ./certs:/certs:ro
     restart: unless-stopped
 
   datanode1:
@@ -49,7 +57,13 @@ services:
       DATANODE_ID: dn1
       DATANODE_ADDR: datanode1:50051
       CONTROL_GRPC_ADDRS: control-leader:50050,control-follower:50050
-    volumes: [dn1_data:/data]
+      DATANODE_MASTER_KEY: ${DATANODE_MASTER_KEY}
+      TLS_CERT: /certs/server.crt
+      TLS_KEY: /certs/server.key
+      TLS_CA: /certs/ca.crt
+    volumes:
+      - dn1_data:/data
+      - ./certs:/certs:ro
 
   datanode2:
     <<: *datanode
@@ -58,7 +72,13 @@ services:
       DATANODE_ID: dn2
       DATANODE_ADDR: datanode2:50051
       CONTROL_GRPC_ADDRS: control-leader:50050,control-follower:50050
-    volumes: [dn2_data:/data]
+      DATANODE_MASTER_KEY: ${DATANODE_MASTER_KEY}
+      TLS_CERT: /certs/server.crt
+      TLS_KEY: /certs/server.key
+      TLS_CA: /certs/ca.crt
+    volumes:
+      - dn2_data:/data
+      - ./certs:/certs:ro
 
   datanode3:
     <<: *datanode
@@ -67,7 +87,13 @@ services:
       DATANODE_ID: dn3
       DATANODE_ADDR: datanode3:50051
       CONTROL_GRPC_ADDRS: control-leader:50050,control-follower:50050
-    volumes: [dn3_data:/data]
+      DATANODE_MASTER_KEY: ${DATANODE_MASTER_KEY}
+      TLS_CERT: /certs/server.crt
+      TLS_KEY: /certs/server.key
+      TLS_CA: /certs/ca.crt
+    volumes:
+      - dn3_data:/data
+      - ./certs:/certs:ro
 
   client:
     build: ./client
@@ -75,6 +101,7 @@ services:
     profiles: ["tools"]   # no arranca con `up`; se usa con `run`
     volumes:
       - ./:/work
+      - ./certs:/certs:ro
 
 volumes:
   cn_leader_data:
