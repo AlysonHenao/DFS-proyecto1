@@ -9,6 +9,12 @@ de escritura. El failover es manual: se detiene el `leader`, se promueve el
 Auth: `Authorization: Bearer <JWT>` en todo salvo `/auth/*` y `/health`.
 JWT: HS256, claims `sub` (username) y `exp`. El mismo JWT lo validan los DataNodes.
 Rutas: absolutas dentro de la raíz del usuario (`/`, `/docs`, `/docs/a.pdf`). `cd` es solo del cliente (guarda el directorio actual en `~/.dfsha`).
+La CLI no contiene credenciales por defecto: acepta `DFSHA_USERNAME` y
+`DFSHA_PASSWORD` por entorno, o solicita ambos de forma interactiva (la
+contraseña no se muestra). El usuario `demo` solo se conserva como usuario
+inicial de desarrollo de la base de datos.
+También admite `register [USERNAME]` y `login [USERNAME]`; el JWT del login se
+guarda en `DFSHA_SESSION_FILE` y nunca se guarda la contraseña.
 
 Errores (JSON `{"detail": "..."}`): `401` sin/invalid token · `404` no existe · `409` ya existe / no vacío · `422` datos inválidos · `503` no hay suficientes DataNodes vivos.
 
