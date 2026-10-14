@@ -30,6 +30,20 @@ class ControlClient:
         response.raise_for_status()
         return response
 
+    def register(self, username: str, password: str) -> dict[str, str]:
+        response = requests.post(
+            f"{control_url()}/auth/register",
+            json={"username": username, "password": password},
+            timeout=REQUEST_TIMEOUT,
+            verify=tls_verify(),
+        )
+        if response.status_code == 503:
+            raise RuntimeError(
+                "El ControlNode no es leader; actualiza DFSHA_CONTROL_URL"
+            )
+        response.raise_for_status()
+        return response.json()
+
     def plan_upload(self, path: str, size: int) -> dict[str, Any]:
         return self.request(
             "POST", "/files/put/plan", json={"path": path, "size": size}

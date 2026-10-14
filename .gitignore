@@ -1,4 +1,5 @@
 .env
+.dfsha-session.json
 certs/
 __pycache__/
 *.py[cod]

@@ -6,7 +6,8 @@ from datanode_client import DataNodeClient
 from transfer import FileTransfer
 
 USAGE = (
-    "usage: client.py login | ls [PATH] | mkdir PATH | rm PATH | rmdir PATH | "
+    "usage: client.py register [USERNAME] | login [USERNAME] | ls [PATH] | "
+    "mkdir PATH | rm PATH | rmdir PATH | "
     "put SOURCE REMOTE_PATH | get REMOTE_PATH DESTINATION | "
     "open REMOTE_PATH [r|w|a] | close SESSION_ID | read SESSION_ID OFFSET LENGTH DESTINATION | "
     "lock SESSION_ID | unlock SESSION_ID"
@@ -18,15 +19,27 @@ def main() -> None:
     if len(sys.argv) < 2:
         raise SystemExit(USAGE)
 
-    auth = AuthSession()
-    auth.login()
-    control = ControlClient(auth)
-    transfer = FileTransfer(control, DataNodeClient())
     command = sys.argv[1]
 
-    if command == "login":
-        pass
-    elif command == "ls":
+    auth = AuthSession()
+    control = ControlClient(auth)
+
+    if command == "register" and len(sys.argv) in (2, 3):
+        username = sys.argv[2] if len(sys.argv) == 3 else None
+        username, password = auth.credentials(username, confirm=True)
+        result = control.register(username, password)
+        print(f"registered: {result['username']}")
+        return
+    if command == "login" and len(sys.argv) in (2, 3):
+        username = sys.argv[2] if len(sys.argv) == 3 else None
+        auth.login(username)
+        print("login ok")
+        return
+
+    if not auth.load():
+        auth.login()
+    transfer = FileTransfer(control, DataNodeClient())
+    if command == "ls":
         path = sys.argv[2] if len(sys.argv) == 3 else "/"
         for entry in control.ls(path):
             print(f"{entry['type']}\t{entry['size']}\t{entry['name']}")
