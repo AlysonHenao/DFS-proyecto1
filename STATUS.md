@@ -1,6 +1,6 @@
 # Estado del proyecto
 
-Actualizado: 2026-10-13
+Actualizado: 2026-10-14
 
 ## Implementación actual
 
@@ -67,6 +67,20 @@ tres DataNodes configurados mediante Docker Compose.
 - [x] Tests de almacenamiento, cifrado, papelera, eliminación idempotente,
       resolución de múltiples direcciones de ControlNode y fallback entre
       réplicas.
+- [x] Cliente RF3 preparado contra el contrato REST esperado: métodos para
+      `open`, `close`, `lock`, `unlock`, renovación de lease y planes de
+      lectura/escritura en `client/control_client.py`.
+- [x] Lectura de rangos en `client/transfer.py`, incluyendo rangos que cruzan
+      bloques, verificación SHA-256 y fallback ante fallo de RPC o integridad.
+- [x] Escritura de bloques nuevos por cadena de replicación en
+      `client/transfer.py`, conservando `stored_on` y el hash calculado para
+      el commit.
+- [x] Comandos CLI iniciales de RF3: `open`, `close`, `read`, `lock` y
+      `unlock`.
+- [x] Pruebas unitarias independientes del ControlNode RF3 en
+      `tests/test_rf3_client.py`; la suite completa local pasó con 20 tests.
+- [x] Procedimiento y contrato esperado documentados en
+      `docs/rf3-client-validation.md`.
 
 ## RF3: Acceso a archivos (`open`, `close`, `read`, `write`, `lock`)
 
@@ -136,17 +150,33 @@ versionamiento y locks.
 
 ### Persona B - DataNode y cliente
 
-- [ ] Comandos CLI: `open`/`close`, `read` (rango), `write` (offset),
-      `append`, `lock` y `unlock`, más renovación automática del lease.
-- [ ] Read-modify-write de bloques parciales: descifrar, modificar y escribir
-      un bloque nuevo por la cadena de replicación.
-- [ ] Verificación de SHA-256 de bloque y de versión en lecturas; reintento
-      con otra réplica si falla (reutilizar el fallback existente).
-- [ ] Manejo de conflicto/lock denegado en el cliente con mensajes claros.
-- [ ] Tests de lectura por rango, escritura parcial, append, integridad y
-      fallo de DataNode a mitad de escritura.
+`[~]` indica trabajo parcial: la lógica cliente está preparada, pero la
+integración no puede cerrarse hasta que la Persona A entregue el ControlNode
+RF3.
+
+- [~] Métodos cliente para `open`/`close`, `lock`, `unlock`, renovación de
+      lease y planes de lectura/escritura preparados en
+      `client/control_client.py`; quedan bloqueados para integración hasta que
+      la Persona A implemente y confirme las rutas RF3.
+- [~] CLI con `open`, `close`, `read`, `lock` y `unlock` implementados.
+      `write`, `append` y la renovación automática del lease todavía requieren
+      cerrar el contrato de sesión y de bloques nuevos con la Persona A.
+- [~] Lectura por rango, verificación SHA-256 por bloque y fallback entre
+      réplicas implementados en `client/transfer.py`. El
+      read-modify-write completo depende de que el plan de escritura de A
+      indique los bloques afectados y la versión base.
+- [x] Escritura de un bloque nuevo por la cadena de replicación preparada en
+      `client/transfer.py`, con `stored_on` y hash para el commit.
+- [ ] Manejo final de conflicto, lock denegado, lease vencido y quorum con
+      mensajes específicos; se implementará después de confirmar los códigos
+      y cuerpos de error RF3.
+- [x] Tests unitarios de lectura por rango, límites, integridad, fallback y
+      contrato REST simulado en `tests/test_rf3_client.py`.
+- [ ] Tests integrados de escritura parcial, append y caída de DataNode a
+      mitad de escritura; requieren el ControlNode RF3 de la Persona A.
 - [ ] Extender los smoke tests con un escenario RF3 (`TLS_ENABLED=false` y
-      `true`).
+      `true`). El procedimiento diferido está documentado en
+      `docs/rf3-client-validation.md`.
 
 ### Ambas personas
 
