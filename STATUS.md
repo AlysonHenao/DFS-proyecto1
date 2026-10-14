@@ -1,6 +1,6 @@
 # Estado del proyecto
 
-Actualizado: 2026-10-12
+Actualizado: 2026-10-13
 
 ## Implementación actual
 
@@ -68,6 +68,94 @@ tres DataNodes configurados mediante Docker Compose.
       resolución de múltiples direcciones de ControlNode y fallback entre
       réplicas.
 
+## RF3: Acceso a archivos (`open`, `close`, `read`, `write`, `lock`)
+
+Respuesta del profesor (2026-10-13): `write()` debe considerarse, pero no
+tiene que permitir cualquier modificación. El grupo define y justifica la
+semántica de escritura, y debe poder explicar qué ocurre con (1) dos clientes
+escribiendo a la vez, (2) varias réplicas de un archivo y (3) la caída de un
+nodo durante una escritura. No basta con implementar las operaciones.
+
+### Semántica propuesta (por confirmar en el equipo antes de implementar)
+
+La idea es reutilizar lo que ya existe (bloques inmutables, `put/plan`,
+`put/commit`, `put/abort`, quorum, `DELETE` de huérfanos) y agregar solo
+versionamiento y locks.
+
+- **Archivos versionados con copy-on-write por bloque.** Un bloque nunca se
+  modifica en sitio; escribir sobre un bloque crea un bloque nuevo. Cada
+  `close` exitoso genera una nueva versión del archivo. Los bloques no
+  tocados se comparten entre versiones.
+- **Lectura consistente.** `open` en modo lectura fija la versión vigente;
+  `read(offset, length)` se resuelve a los bloques de esa versión, sin ver
+  escrituras a medias.
+- **Escritura.** `open` en modo escritura exige lock exclusivo y registra la
+  versión base. `write(offset, data)` reescribe solo los bloques afectados
+  (read-modify-write para bloques parciales, con AES-GCM por bloque nuevo).
+  El modo adición (`append`) es un caso particular.
+- **Commit atómico.** `close` confirma la nueva versión con
+  compare-and-swap sobre la versión base: si otra escritura la cambió,
+  el commit se rechaza con conflicto y se aborta la sesión.
+- **Lock exclusivo con lease.** `lock`/`unlock`/renovación con TTL; el
+  monitor del ControlNode expira los locks de clientes caídos.
+- **Integridad.** SHA-256 por bloque y por versión registrado en metadatos,
+  verificado por el cliente al leer (el tag de AES-GCM ya autentica en disco).
+- **Plan B si el tiempo no alcanza.** Reducir a reemplazo completo versionado
+  + `append`, manteniendo lock, versiones y CAS (justificar en el informe).
+
+### Respuestas a los tres escenarios del profesor (a validar con pruebas)
+
+- **Dos clientes escriben a la vez:** el segundo no obtiene el lock exclusivo;
+  si escribe sin lock (o con lease vencido), el commit falla por conflicto de
+  versión. No hay pérdida silenciosa de datos.
+- **Varias réplicas:** el commit solo ocurre cuando los bloques nuevos
+  alcanzaron el quorum de escritura; la versión anterior sigue íntegra hasta
+  entonces. La re-replicación existente completa las réplicas faltantes.
+- **Nodo cae durante la escritura:** la escritura sigue si se cumple el quorum
+  o se aborta; los bloques de sesiones abortadas quedan huérfanos y se
+  eliminan con `DELETE`. Si cae el cliente, el lease expira y ocurre lo mismo.
+  Si cae el leader, la promoción manual restaura locks y versiones desde el
+  último snapshot; las sesiones abiertas se invalidan (limitación documentada).
+
+### Persona A - ControlNode
+
+- [ ] Esquema SQLite: versiones de archivo (lista ordenada de bloques por
+      versión, SHA-256), locks con dueño/TTL y sesiones de escritura abiertas.
+- [ ] Endpoints REST: `open`, `close`, `lock`, `unlock`, renovación de lease
+      y consulta de versión.
+- [ ] Plan de lectura por rango (`get/plan` con offset/length) y plan de
+      escritura que reutilice solo los bloques afectados.
+- [ ] Commit con compare-and-swap sobre la versión base y validación de que
+      se cumple el quorum de los bloques nuevos.
+- [ ] Expiración de locks/leases y aborto de sesiones desde el monitor del
+      cluster; envío de `DELETE` de bloques huérfanos de sesiones abortadas.
+- [ ] Incluir locks y versiones en el snapshot leader→follower y documentar
+      el efecto en [FAILOVER.md](./FAILOVER.md).
+- [ ] Tests: lock exclusivo, conflicto de versión, expiración de lease,
+      commit sin quorum, aborto con limpieza de huérfanos.
+
+### Persona B - DataNode y cliente
+
+- [ ] Comandos CLI: `open`/`close`, `read` (rango), `write` (offset),
+      `append`, `lock` y `unlock`, más renovación automática del lease.
+- [ ] Read-modify-write de bloques parciales: descifrar, modificar y escribir
+      un bloque nuevo por la cadena de replicación.
+- [ ] Verificación de SHA-256 de bloque y de versión en lecturas; reintento
+      con otra réplica si falla (reutilizar el fallback existente).
+- [ ] Manejo de conflicto/lock denegado en el cliente con mensajes claros.
+- [ ] Tests de lectura por rango, escritura parcial, append, integridad y
+      fallo de DataNode a mitad de escritura.
+- [ ] Extender los smoke tests con un escenario RF3 (`TLS_ENABLED=false` y
+      `true`).
+
+### Ambas personas
+
+- [ ] Prueba de concurrencia: dos clientes escribiendo el mismo archivo
+      (con lock y sin lock) y registro del resultado.
+- [ ] Prueba de falla: caer un DataNode y luego un cliente durante `write`;
+      verificar que no queda una versión corrupta ni bloques huérfanos.
+- [ ] Documentar la semántica elegida y su justificación (alimenta el informe).
+
 ## Seguridad y resiliencia
 
 - [x] TLS opcional para los servidores y canales gRPC de heartbeats,
@@ -101,10 +189,51 @@ tres DataNodes configurados mediante Docker Compose.
 
 ## Fase 3: cierre
 
-- [ ] Informe final.
-- [ ] Video de demostración.
+### Despliegue
+
+- [ ] Desplegar en 2 o 3 VMs (AWS Academy o GCP académico) con Docker
+      Compose: ControlNodes leader/follower y 3 DataNodes distribuidos.
+      Responsables: ambas personas (A: ControlNodes; B: DataNodes y cliente).
+- [ ] Configurar red/puertos expuestos, TLS con certificados con SAN de las
+      IPs o nombres reales, `DATANODE_MASTER_KEY` y API key (fuera de Git).
+- [ ] Repetir en las VMs los smoke tests (RF1, RF2 y RF3) y registrar el
+      resultado.
+- [ ] README del repositorio reproducible: requisitos, pasos de despliegue
+      local y en VMs, variables de entorno y comandos de ejemplo.
+
+### Informe técnico (PDF o Word)
+
+Cada persona redacta lo que implementó y se revisa de forma cruzada.
+
+- [ ] Objetivo y marco teórico breve (B).
+- [ ] Descripción del servicio y problema abordado (A).
+- [ ] Arquitectura y diagramas, incluyendo ControlNodes leader/follower (A).
+- [ ] Especificación de protocolos y APIs: REST, gRPC y endpoints RF3 (A y B).
+- [ ] Algoritmos de particionamiento, distribución y replicación (A).
+- [ ] **Semántica de escritura de RF3 y su justificación**: versionamiento,
+      lock con lease, CAS y validación de integridad, con los tres escenarios
+      pedidos por el profesor (A y B).
+- [ ] Entorno de ejecución en Docker y despliegue en VMs (A y B).
+- [ ] Pruebas y análisis de resultados: smoke tests, concurrencia, fallas,
+      benchmark de bloques (A y B).
+- [ ] Limitaciones conocidas (failover manual, sin mTLS, sesiones abiertas al
+      promover el follower).
+
+### Video de demostración (10-15 min)
+
+- [ ] Guion repartido: explicación de arquitectura (A) y demo del cliente y
+      DataNodes (B).
+- [ ] Demo RF1/RF2: subir/bajar archivo de varios bloques, comparar SHA-256.
+- [ ] Demo RF3: dos clientes escribiendo (lock y conflicto), lectura por
+      rango, versión nueva tras `close`.
+- [ ] Demo de falla: caída de un DataNode durante una escritura/lectura,
+      fallback y re-replicación; failover manual del ControlNode.
+- [ ] Grabar sobre el despliegue en VMs.
+
+### Otros
+
 - [ ] Benchmark mínimo comparando tamaños de bloque.
-- [ ] **RF3 (`open`, `close`, `read`, `write`, `lock`) permanece pendiente, por confirmar con el profesor **
+- [ ] Repositorio GitHub documentado y reproducible.
 
 ## Fuera de alcance
 
@@ -115,6 +244,11 @@ tres DataNodes configurados mediante Docker Compose.
       `PushSnapshot(stream SnapshotChunk)` queda fuera de esta entrega.
 - [ ] mTLS no está implementado; la configuración actual usa autenticación del
       servidor mediante TLS y API key para los RPC internos.
+- [ ] RF3 no ofrece semántica POSIX completa: sin locks por rango de bytes,
+      sin escrituras concurrentes sobre el mismo archivo (se serializan con
+      lock exclusivo) y sin fusión automática de versiones en conflicto.
+- [ ] Los locks no sobreviven sin pérdida a un failover: se restauran desde
+      el último snapshot y las sesiones abiertas se invalidan.
 
 ## Notas y configuración
 
@@ -124,3 +258,5 @@ tres DataNodes configurados mediante Docker Compose.
   bloques de 8 MiB.
 - `DATANODE_MASTER_KEY` debe ser una clave Base64 que decodifique exactamente a
   32 bytes.
+- Decisión de RF3 pendiente de confirmar en el equipo: escritura por offset
+  con copy-on-write vs. plan B (reemplazo completo versionado + `append`).
