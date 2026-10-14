@@ -55,3 +55,55 @@ class ControlClient:
 
     def remove_directory(self, path: str) -> None:
         self.request("DELETE", "/fs/rmdir", params={"path": path})
+
+    def open_file(self, path: str, mode: str = "r", append: bool = False) -> dict[str, Any]:
+        return self.request(
+            "POST",
+            "/files/open",
+            json={"path": path, "mode": mode, "append": append},
+        ).json()
+
+    def close_file(
+        self, session_id: str, blocks: list[dict[str, Any]] | None = None
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {"session_id": session_id}
+        if blocks is not None:
+            body["blocks"] = blocks
+        return self.request("POST", "/files/close", json=body).json()
+
+    def lock_file(self, session_id: str, lease_seconds: int | None = None) -> dict[str, Any]:
+        body: dict[str, Any] = {"session_id": session_id}
+        if lease_seconds is not None:
+            body["lease_seconds"] = lease_seconds
+        return self.request("POST", "/files/lock", json=body).json()
+
+    def unlock_file(self, session_id: str) -> None:
+        self.request("POST", "/files/unlock", json={"session_id": session_id})
+
+    def renew_lease(self, session_id: str, lease_seconds: int | None = None) -> dict[str, Any]:
+        body: dict[str, Any] = {"session_id": session_id}
+        if lease_seconds is not None:
+            body["lease_seconds"] = lease_seconds
+        return self.request("POST", "/files/lock/renew", json=body).json()
+
+    def plan_read(
+        self, session_id: str, offset: int = 0, length: int | None = None
+    ) -> dict[str, Any]:
+        params: dict[str, Any] = {"session_id": session_id, "offset": offset}
+        if length is not None:
+            params["length"] = length
+        return self.request("GET", "/files/read/plan", params=params).json()
+
+    def plan_write(
+        self, session_id: str, offset: int, length: int, append: bool = False
+    ) -> dict[str, Any]:
+        return self.request(
+            "POST",
+            "/files/write/plan",
+            json={
+                "session_id": session_id,
+                "offset": offset,
+                "length": length,
+                "append": append,
+            },
+        ).json()
