@@ -81,6 +81,23 @@ tres DataNodes configurados mediante Docker Compose.
       `tests/test_rf3_client.py`; la suite completa local pasó con 20 tests.
 - [x] Procedimiento y contrato esperado documentados en
       `docs/rf3-client-validation.md`.
+- [x] Cliente autenticado con credenciales configurables mediante
+      `DFSHA_USERNAME` y `DFSHA_PASSWORD`; si no se proporcionan, solicita el
+      usuario y la contraseña de forma interactiva sin mostrar esta última.
+      Se eliminó el uso obligatorio de `demo/demo`.
+- [x] Flujo Docker validado con un usuario nuevo: registro, login y `ls`
+      autenticado; una contraseña incorrecta devuelve `401`.
+- [x] CLI con comandos explícitos `register [USERNAME]` y `login [USERNAME]`;
+      el JWT se persiste sin guardar la contraseña.
+- [x] Flujo Docker validado con `client register`, `client login` y una
+      operación posterior reutilizando el JWT persistido en `/work`.
+- [x] Flujo recomendado documentado: registrar un usuario con
+      `docker compose run --rm client register <USUARIO>`, iniciar sesión con
+      `docker compose run --rm client login <USUARIO>` y ejecutar después los
+      comandos protegidos sin repetir usuario ni contraseña.
+- [x] Confirmado que el sufijo basado en fecha, por ejemplo
+      `clustercheck$(Get-Date -Format 'HHmmss')`, es opcional y solo sirve para
+      evitar conflictos al repetir pruebas; no forma parte de la autenticación.
 
 ## RF3: Acceso a archivos (`open`, `close`, `read`, `write`, `lock`)
 

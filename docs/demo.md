@@ -189,10 +189,62 @@ Get-FileHash .\demo-input.txt -Algorithm SHA256
 
 ### Docker Compose local
 
-```bash
+Registrar un usuario desde el cliente. El nombre puede ser fijo; la fecha no
+es necesaria. Si se repite la prueba con el mismo usuario, el servidor
+responderá que ese usuario ya existe:
+
+```powershell
+docker compose run --rm client register alice
+```
+
+La CLI solicitará la contraseña y su confirmación sin mostrarla en pantalla.
+También puede recibirse el usuario desde una variable de entorno, pero no es
+necesario repetir esa variable en los comandos posteriores.
+
+Iniciar sesión explícitamente y guardar el JWT en el volumen `/work`:
+
+```powershell
+docker compose run --rm client login alice
+```
+
+La CLI solicitará la contraseña. Después del login, los comandos temporales
+pueden reutilizar el JWT guardado sin `-e DFSHA_USERNAME` ni
+`-e DFSHA_PASSWORD`:
+
+```powershell
+docker compose run --rm client ls /
 docker compose run --rm client mkdir /demo
 docker compose run --rm client put /work/demo-input.txt /demo/input.txt
 ```
+
+El token se guarda en `.dfsha-session.json`, excluido de Git. Para invalidar
+la sesión local, eliminar ese archivo y ejecutar `login` de nuevo:
+
+```powershell
+Remove-Item .\.dfsha-session.json
+docker compose run --rm client login alice
+```
+
+Para automatizar el flujo sin prompts, las credenciales pueden proporcionarse
+solo en `register` y `login`:
+
+```powershell
+docker compose run --rm `
+  -e DFSHA_USERNAME=alice `
+  -e DFSHA_PASSWORD='S3gura-Prueba-2026!' `
+  client register
+
+docker compose run --rm `
+  -e DFSHA_USERNAME=alice `
+  -e DFSHA_PASSWORD='S3gura-Prueba-2026!' `
+  client login
+```
+
+No es necesario incluir esas variables al ejecutar `ls`, `mkdir`, `put`, `get`
+u otros comandos protegidos mientras `.dfsha-session.json` exista y el JWT no
+haya expirado. Si se necesita un usuario nuevo en cada ejecución automática,
+se puede generar un nombre único con `Get-Date`, pero esto solo evita el
+conflicto `user already exists`.
 
 ### VM Linux o AWS EC2
 
