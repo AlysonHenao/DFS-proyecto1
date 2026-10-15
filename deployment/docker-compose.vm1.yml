@@ -1,0 +1,45 @@
+services:
+  control-leader:
+    build:
+      context: ..
+      dockerfile: controlnode/Dockerfile
+    env_file: ../.env
+    environment:
+      CONTROLNODE_ID: control-leader
+      CONTROLNODE_ROLE: leader
+      CONTROL_PEER_GRPC_ADDR: VM2_PRIVATE_IP:50050
+      TLS_CERT: /certs/server.crt
+      TLS_KEY: /certs/server.key
+      TLS_CA: /certs/ca.crt
+    ports:
+      - "8000:8000"
+      - "50050:50050"
+    volumes:
+      - cn_leader_data:/data
+      - ../certs:/certs:ro
+    restart: unless-stopped
+
+  datanode1:
+    build:
+      context: ..
+      dockerfile: datanode/Dockerfile
+    env_file: ../.env
+    depends_on:
+      - control-leader
+    environment:
+      DATANODE_ID: dn1
+      DATANODE_ADDR: VM1_PRIVATE_IP:50051
+      CONTROL_GRPC_ADDRS: VM1_PRIVATE_IP:50050,VM2_PRIVATE_IP:50050
+      TLS_CERT: /certs/server.crt
+      TLS_KEY: /certs/server.key
+      TLS_CA: /certs/ca.crt
+    ports:
+      - "50051:50051"
+    volumes:
+      - dn1_data:/data
+      - ../certs:/certs:ro
+    restart: unless-stopped
+
+volumes:
+  cn_leader_data:
+  dn1_data:
