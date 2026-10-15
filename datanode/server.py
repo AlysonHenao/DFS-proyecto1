@@ -1,4 +1,5 @@
 import os
+import logging
 from concurrent import futures
 
 import grpc
@@ -11,6 +12,11 @@ from replication import BlockReplication
 from service import DataNodeService
 from storage import BlockStorage
 from tls import server_credentials
+
+logging.basicConfig(
+    level=os.getenv("LOG_LEVEL", "INFO").upper(),
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
 
 DATA_DIR = os.getenv("DATANODE_DATA_DIR", "/data")
 ADDRESS = os.getenv("DATANODE_ADDR", "localhost:50051")
