@@ -95,6 +95,13 @@ class HeartbeatRunner:
                     reply = dfsha_pb2_grpc.ControlNodeInternalStub(grpc_channel).Heartbeat(
                         request, metadata=metadata, timeout=2
                     )
+                LOGGER.info(
+                    "Heartbeat sent successfully to %s: node=%s blocks=%d commands=%d",
+                    address,
+                    self.node_id,
+                    len(request.block_ids),
+                    len(reply.commands),
+                )
                 for command in reply.commands:
                     self.executor.execute(command)
             except grpc.RpcError as error:

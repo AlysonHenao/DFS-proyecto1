@@ -21,6 +21,8 @@ tres DataNodes configurados mediante Docker Compose.
 - [x] Selección de DataNodes vivos por espacio disponible y generación de
       cadenas de replicación para los bloques.
 - [x] Heartbeat gRPC de DataNodes con actualización de capacidad y estado.
+- [x] Logs informativos de heartbeats exitosos en DataNodes y ControlNodes,
+      incluyendo nodo, destino, bloques reportados, rol y comandos devueltos.
 - [x] Comandos `DELETE` para bloques huérfanos y `REPLICATE` para bloques
       sub-replicados.
 - [x] Marcado de nodos como `dead` después de `DEAD_TIMEOUT_S`.

@@ -13,7 +13,7 @@ import dfsha_pb2
 import dfsha_pb2_grpc
 from tls import server_credentials
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = logging.getLogger("uvicorn.error")
 
 _COMMANDS_LOCK = threading.Lock()
 _PENDING_COMMANDS: dict[str, list[dfsha_pb2.Command]] = defaultdict(list)
@@ -56,6 +56,12 @@ class ControlNodeInternalService(dfsha_pb2_grpc.ControlNodeInternalServicer):
 
         # Follower ControlNode does NOT issue commands to DataNodes
         if CONTROLNODE_ROLE != "leader":
+            LOGGER.info(
+                "Heartbeat received from %s (%s): blocks=%d commands=0 role=follower",
+                request.node_id,
+                request.address,
+                len(request.block_ids),
+            )
             return dfsha_pb2.HeartbeatReply(commands=[])
 
         commands: list[dfsha_pb2.Command] = []
@@ -74,6 +80,13 @@ class ControlNodeInternalService(dfsha_pb2_grpc.ControlNodeInternalServicer):
         queued = pop_commands_for_node(request.node_id)
         commands.extend(queued)
 
+        LOGGER.info(
+            "Heartbeat received from %s (%s): blocks=%d commands=%d role=leader",
+            request.node_id,
+            request.address,
+            len(request.block_ids),
+            len(commands),
+        )
         return dfsha_pb2.HeartbeatReply(commands=commands)
 
     def ReplicateMetadata(self, request: dfsha_pb2.MetadataSnapshot, context: grpc.ServicerContext) -> dfsha_pb2.ReplicationReply:
