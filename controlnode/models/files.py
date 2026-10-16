@@ -19,3 +19,38 @@ class CommitRequest(BaseModel):
 
 class AbortRequest(BaseModel):
     path: str
+
+
+class OpenRequest(BaseModel):
+    path: str
+    mode: str = "r"
+    append: bool = False
+    lease_seconds: int = 60
+
+
+class CloseBlock(BaseModel):
+    index: int
+    block_id: str
+    stored_on: list[str] = []
+    sha256: str | None = None
+
+
+class CloseRequest(BaseModel):
+    session_id: str
+    blocks: list[CloseBlock] | None = None
+
+
+class LockRequest(BaseModel):
+    session_id: str
+    lease_seconds: int = 60
+
+
+class UnlockRequest(BaseModel):
+    session_id: str
+
+
+class WritePlanRequest(BaseModel):
+    session_id: str
+    offset: int
+    length: int
+    append: bool = False

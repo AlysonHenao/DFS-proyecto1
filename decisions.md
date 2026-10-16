@@ -26,6 +26,12 @@ con **dos ControlNodes de metadatos (leader/follower)** y 3 DataNodes.
 | 19 | La replicación de metadatos es **leader → follower**, incluyendo SQLite mediante snapshots consistentes; el follower se promueve manualmente cambiando su rol | Failover explícito, sin split-brain ni elección automática fuera del alcance |
 | 20 | El cliente usa `DFSHA_CONTROL_URL` como endpoint del líder; tras promover el follower solo se actualiza esa variable. La CLI la lee en cada comando, por lo que no requiere reiniciarse | Mantiene el contrato REST simple |
 | 21 | Cada DataNode envía heartbeat a todos los ControlNodes configurados; solo el leader devuelve comandos. Los DELETE se mueven primero a una papelera y se purgan tras `TRASH_RETENTION_S` | Tolera failover y evita perder bloques válidos por metadatos atrasados |
+| 22 | RF3: Semántica **Copy-on-Write (CoW)** por bloque y versionamiento de archivos | Inmutabilidad de bloques; modificar datos genera bloques nuevos y comparte los inalterados entre versiones |
+| 23 | RF3: **Lock exclusivo con lease (TTL)** para `open` en modo `'w'` y `'a'` | Serializa accesos concurrentes de escritura y libera automáticamente recursos de clientes inactivos |
+| 24 | RF3: **Compare-And-Swap (CAS)** sobre `base_version` al hacer `close` | Garantiza detección de conflictos de versión y previene sobreescrituras desactualizadas |
+| 25 | RF3: **Quórum de escritura $W = 2$** exigido en bloques nuevos antes de publicar la versión | Previene estados inconsistentes o réplicas a medias |
+| 26 | RF3: Limpieza de bloques huérfanos de sesiones abortadas/expiradas | Al abortar o expirar un lease, los bloques no confirmados se purgan para que los DataNodes los borren vía heartbeat |
+
 
 Limitaciones asumidas (mencionar en el informe): el failover del ControlNode es
 manual y puede perder las operaciones posteriores al último snapshot; no hay

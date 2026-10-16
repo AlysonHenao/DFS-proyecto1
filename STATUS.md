@@ -152,20 +152,21 @@ versionamiento y locks.
 
 ### Persona A - ControlNode
 
-- [ ] Esquema SQLite: versiones de archivo (lista ordenada de bloques por
+- [x] Esquema SQLite: versiones de archivo (lista ordenada de bloques por
       versión, SHA-256), locks con dueño/TTL y sesiones de escritura abiertas.
-- [ ] Endpoints REST: `open`, `close`, `lock`, `unlock`, renovación de lease
+- [x] Endpoints REST: `open`, `close`, `lock`, `unlock`, renovación de lease
       y consulta de versión.
-- [ ] Plan de lectura por rango (`get/plan` con offset/length) y plan de
-      escritura que reutilice solo los bloques afectados.
-- [ ] Commit con compare-and-swap sobre la versión base y validación de que
-      se cumple el quorum de los bloques nuevos.
-- [ ] Expiración de locks/leases y aborto de sesiones desde el monitor del
-      cluster; envío de `DELETE` de bloques huérfanos de sesiones abortadas.
-- [ ] Incluir locks y versiones en el snapshot leader→follower y documentar
-      el efecto en [FAILOVER.md](./FAILOVER.md).
-- [ ] Tests: lock exclusivo, conflicto de versión, expiración de lease,
-      commit sin quorum, aborto con limpieza de huérfanos.
+- [x] Plan de lectura por rango (`read/plan` con offset/length) y plan de
+      escritura con Copy-on-Write (`write/plan`) reutilizando bloques no afectados.
+- [x] Commit con compare-and-swap sobre la versión base y validación de que
+      se cumple el quorum de los bloques nuevos ($W=2$).
+- [x] Expiración de locks/leases y aborto de sesiones desde el monitor del
+      cluster; depuración de bloques huérfanos de sesiones abortadas/expiradas.
+- [x] Inclusión de locks y versiones en el snapshot leader→follower y documentación
+      del efecto en [FAILOVER.md](./FAILOVER.md).
+- [x] Tests: lock exclusivo, conflicto de versión, expiración de lease,
+      commit sin quorum, aborto con limpieza de huérfanos en `tests/test_controlnode.py`.
+
 
 ### Persona B - DataNode y cliente
 

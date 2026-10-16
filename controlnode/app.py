@@ -17,10 +17,15 @@ import db
 from grpc_server import start_grpc_server
 from models import (
     AbortRequest,
+    CloseRequest,
     CommitRequest,
     Credentials,
+    LockRequest,
+    OpenRequest,
     PathRequest,
     PlanRequest,
+    UnlockRequest,
+    WritePlanRequest,
 )
 from monitor import ClusterMonitor
 
@@ -251,3 +256,142 @@ def get_plan(
     if not plan:
         raise HTTPException(status_code=404, detail="file not found")
     return plan
+
+
+# ----------------------------------------------------------------------
+# File Access & Locks (RF3: open, close, read, write, lock)
+# ----------------------------------------------------------------------
+
+@app.post("/files/open")
+def open_file(
+    body: OpenRequest,
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    try:
+        return db.open_file_session(
+            owner_id=current_user["id"],
+            path=body.path,
+            mode=body.mode,
+            append=body.append,
+            lease_seconds=body.lease_seconds,
+        )
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e).strip("'"))
+    except FileExistsError as e:
+        raise HTTPException(status_code=409, detail=str(e).strip("'"))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e).strip("'"))
+
+
+@app.post("/files/close")
+def close_file(
+    body: CloseRequest,
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    try:
+        blocks_data = [b.dict() for b in body.blocks] if body.blocks is not None else None
+        return db.commit_file_session(
+            owner_id=current_user["id"],
+            session_id=body.session_id,
+            blocks=blocks_data,
+            min_write_acks=MIN_WRITE_ACKS,
+        )
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e).strip("'"))
+    except PermissionError as e:
+        raise HTTPException(status_code=409, detail=str(e).strip("'"))
+    except ValueError as e:
+        if "conflict" in str(e).lower():
+            raise HTTPException(status_code=409, detail=str(e).strip("'"))
+        raise HTTPException(status_code=422, detail=str(e).strip("'"))
+
+
+@app.post("/files/lock")
+def lock_file(
+    body: LockRequest,
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    try:
+        return db.lock_file_session(
+            owner_id=current_user["id"],
+            session_id=body.session_id,
+            lease_seconds=body.lease_seconds,
+        )
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e).strip("'"))
+    except FileExistsError as e:
+        raise HTTPException(status_code=409, detail=str(e).strip("'"))
+
+
+@app.post("/files/lock/renew")
+def renew_lock(
+    body: LockRequest,
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    try:
+        return db.renew_file_lease(
+            owner_id=current_user["id"],
+            session_id=body.session_id,
+            lease_seconds=body.lease_seconds,
+        )
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e).strip("'"))
+    except FileExistsError as e:
+        raise HTTPException(status_code=409, detail=str(e).strip("'"))
+
+
+@app.post("/files/unlock")
+def unlock_file(
+    body: UnlockRequest,
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, str]:
+    try:
+        db.unlock_file_session(
+            owner_id=current_user["id"],
+            session_id=body.session_id,
+        )
+        return {"status": "unlocked"}
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e).strip("'"))
+
+
+@app.get("/files/read/plan")
+def read_plan(
+    session_id: str,
+    offset: int = 0,
+    length: int | None = None,
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    try:
+        return db.get_read_plan_rf3(
+            owner_id=current_user["id"],
+            session_id=session_id,
+            offset=offset,
+            length=length,
+        )
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e).strip("'"))
+    except TimeoutError as e:
+        raise HTTPException(status_code=409, detail=str(e).strip("'"))
+
+
+@app.post("/files/write/plan")
+def write_plan(
+    body: WritePlanRequest,
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    try:
+        return db.get_write_plan_rf3(
+            owner_id=current_user["id"],
+            session_id=body.session_id,
+            offset=body.offset,
+            length=body.length,
+            append=body.append,
+        )
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e).strip("'"))
+    except PermissionError as e:
+        raise HTTPException(status_code=409, detail=str(e).strip("'"))
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e).strip("'"))
+

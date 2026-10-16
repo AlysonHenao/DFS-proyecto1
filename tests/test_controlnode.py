@@ -12,6 +12,8 @@ os.environ["MIN_WRITE_ACKS"] = "2"
 os.environ["DEAD_TIMEOUT_S"] = "2"
 
 import sys
+sys.modules.pop("auth", None)
+sys.modules.pop("config", None)
 sys.path.insert(0, str(Path(__file__).parent.parent / "controlnode"))
 
 import auth
@@ -170,6 +172,174 @@ class TestControlNodeDatabase(unittest.TestCase):
         res = db.list_directory(user["id"], "/", target_path)
         self.assertTrue(any(e["name"] == "backup_test" for e in res))
 
+    def test_rf3_open_read_and_read_plan(self):
+        user = db.get_user_by_username("demo", self.db_path)
+        uid = user["id"]
+
+        db.upsert_node("dn1", "datanode1:50051", 1000, 2000, self.db_path)
+        db.upsert_node("dn2", "datanode2:50051", 900, 2000, self.db_path)
+
+        # Create file via RF2
+        blocks = [{"index": 0, "block_id": "b-read-1", "size": 65536, "chain": ["datanode1:50051", "datanode2:50051"]}]
+        db.create_upload_plan(uid, "/rf3_read.bin", 65536, 65536, blocks, self.db_path)
+        db.commit_upload(uid, "/rf3_read.bin", [{"block_id": "b-read-1", "stored_on": ["datanode1:50051", "datanode2:50051"]}], 2, self.db_path)
+
+        # Open in read mode
+        sess = db.open_file_session(uid, "/rf3_read.bin", mode="r", db_path=self.db_path)
+        self.assertEqual(sess["mode"], "r")
+        self.assertEqual(sess["base_version"], 1)
+
+        # Get read plan
+        plan = db.get_read_plan_rf3(uid, sess["session_id"], offset=100, length=500, db_path=self.db_path)
+        self.assertEqual(plan["version"], 1)
+        self.assertEqual(len(plan["blocks"]), 1)
+        self.assertEqual(plan["blocks"][0]["block_id"], "b-read-1")
+        self.assertEqual(plan["blocks"][0]["offset"], 0)
+
+        # Close session
+        res = db.commit_file_session(uid, sess["session_id"], db_path=self.db_path)
+        self.assertEqual(res["status"], "closed")
+
+    def test_rf3_exclusive_lock_and_concurrency(self):
+        user = db.get_user_by_username("demo", self.db_path)
+        uid = user["id"]
+
+        # Client 1 opens in mode 'w'
+        sess1 = db.open_file_session(uid, "/shared.txt", mode="w", lease_seconds=10, db_path=self.db_path)
+        self.assertEqual(sess1["mode"], "w")
+
+        # Client 2 attempts to open same file in mode 'w' concurrently -> rejected
+        with self.assertRaises(FileExistsError):
+            db.open_file_session(uid, "/shared.txt", mode="w", db_path=self.db_path)
+
+        # Client 1 renews lease
+        renewed = db.renew_file_lease(uid, sess1["session_id"], lease_seconds=30, db_path=self.db_path)
+        self.assertEqual(renewed["status"], "locked")
+
+        # Client 1 unlocks
+        db.unlock_file_session(uid, sess1["session_id"], db_path=self.db_path)
+
+        # Now Client 2 can open in mode 'w'
+        sess2 = db.open_file_session(uid, "/shared.txt", mode="w", lease_seconds=10, db_path=self.db_path)
+        self.assertEqual(sess2["mode"], "w")
+        self.assertNotEqual(sess1["session_id"], sess2["session_id"])
+
+    def test_rf3_write_plan_copy_on_write_and_commit(self):
+        user = db.get_user_by_username("demo", self.db_path)
+        uid = user["id"]
+
+        db.upsert_node("dn1", "datanode1:50051", 1000, 2000, self.db_path)
+        db.upsert_node("dn2", "datanode2:50051", 900, 2000, self.db_path)
+
+        # Open new file for write
+        sess = db.open_file_session(uid, "/cow_test.txt", mode="w", db_path=self.db_path)
+        self.assertEqual(sess["base_version"], 0)
+
+        # Plan write
+        plan = db.get_write_plan_rf3(uid, sess["session_id"], offset=0, length=1000, db_path=self.db_path)
+        self.assertEqual(len(plan["blocks"]), 1)
+        blk = plan["blocks"][0]
+
+        # Commit write session with quorum
+        commit_res = db.commit_file_session(
+            uid,
+            sess["session_id"],
+            blocks=[{"index": 0, "block_id": blk["block_id"], "size": 1000, "stored_on": ["datanode1:50051", "datanode2:50051"]}],
+            min_write_acks=2,
+            db_path=self.db_path,
+        )
+        self.assertEqual(commit_res["status"], "closed")
+        self.assertEqual(commit_res["version"], 1)
+        self.assertEqual(commit_res["size"], 1000)
+
+        # Verify new session sees version 1
+        read_sess = db.open_file_session(uid, "/cow_test.txt", mode="r", db_path=self.db_path)
+        self.assertEqual(read_sess["base_version"], 1)
+        self.assertEqual(read_sess["size"], 1000)
+
+    def test_rf3_cas_version_conflict(self):
+        user = db.get_user_by_username("demo", self.db_path)
+        uid = user["id"]
+
+        db.upsert_node("dn1", "datanode1:50051", 1000, 2000, self.db_path)
+        db.upsert_node("dn2", "datanode2:50051", 900, 2000, self.db_path)
+
+        # Create version 1
+        s1 = db.open_file_session(uid, "/conflict.txt", mode="w", db_path=self.db_path)
+        p1 = db.get_write_plan_rf3(uid, s1["session_id"], 0, 500, db_path=self.db_path)
+        db.commit_file_session(uid, s1["session_id"], [{"index": 0, "block_id": p1["blocks"][0]["block_id"], "size": 500, "stored_on": ["datanode1:50051", "datanode2:50051"]}], 2, self.db_path)
+
+        # Client A opens file in 'w' based on version 1
+        sess_a = db.open_file_session(uid, "/conflict.txt", mode="w", db_path=self.db_path)
+        self.assertEqual(sess_a["base_version"], 1)
+        plan_a = db.get_write_plan_rf3(uid, sess_a["session_id"], 0, 600, db_path=self.db_path)
+
+        # Client A releases lock (simulating lock timeout or handoff)
+        db.unlock_file_session(uid, sess_a["session_id"], db_path=self.db_path)
+
+        # Client B opens and commits version 2
+        sess_b = db.open_file_session(uid, "/conflict.txt", mode="w", db_path=self.db_path)
+        plan_b = db.get_write_plan_rf3(uid, sess_b["session_id"], 0, 700, db_path=self.db_path)
+        db.commit_file_session(uid, sess_b["session_id"], [{"index": 0, "block_id": plan_b["blocks"][0]["block_id"], "size": 700, "stored_on": ["datanode1:50051", "datanode2:50051"]}], 2, self.db_path)
+
+        # Client A re-locks and attempts commit against base_version 1 -> CAS conflict
+        db.lock_file_session(uid, sess_a["session_id"], 60, db_path=self.db_path)
+        with self.assertRaises(ValueError) as ctx:
+            db.commit_file_session(uid, sess_a["session_id"], [{"index": 0, "block_id": plan_a["blocks"][0]["block_id"], "size": 600, "stored_on": ["datanode1:50051", "datanode2:50051"]}], 2, self.db_path)
+        self.assertIn("version conflict", str(ctx.exception))
+
+    def test_rf3_lease_expiration_and_orphan_cleanup(self):
+        user = db.get_user_by_username("demo", self.db_path)
+        uid = user["id"]
+
+        db.upsert_node("dn1", "datanode1:50051", 1000, 2000, self.db_path)
+        db.upsert_node("dn2", "datanode2:50051", 900, 2000, self.db_path)
+
+        # Open session with very short lease (1 second)
+        sess = db.open_file_session(uid, "/expire.txt", mode="w", lease_seconds=1, db_path=self.db_path)
+        plan = db.get_write_plan_rf3(uid, sess["session_id"], 0, 500, db_path=self.db_path)
+        new_bid = plan["blocks"][0]["block_id"]
+
+        # Sleep so lease expires
+        time.sleep(1.5)
+
+        # Clean expired
+        locks_cleaned, expired = db.clean_expired_locks_and_sessions(self.db_path)
+        self.assertGreater(locks_cleaned, 0)
+        self.assertGreater(expired, 0)
+
+        # The uncommitted block is purged from blocks table (meaning it's an orphan for DataNodes)
+        orphans = db.get_orphan_blocks_for_node([new_bid], self.db_path)
+        self.assertIn(new_bid, orphans)
+
+        # Now another client can immediately open the file without conflict
+        sess_new = db.open_file_session(uid, "/expire.txt", mode="w", db_path=self.db_path)
+        self.assertEqual(sess_new["mode"], "w")
+
+    def test_rf3_quorum_enforcement(self):
+        user = db.get_user_by_username("demo", self.db_path)
+        uid = user["id"]
+
+        db.upsert_node("dn1", "datanode1:50051", 1000, 2000, self.db_path)
+        db.upsert_node("dn2", "datanode2:50051", 900, 2000, self.db_path)
+
+        sess = db.open_file_session(uid, "/quorum.txt", mode="w", db_path=self.db_path)
+        plan = db.get_write_plan_rf3(uid, sess["session_id"], 0, 500, db_path=self.db_path)
+        blk = plan["blocks"][0]
+
+        # Only 1 confirmation when MIN_WRITE_ACKS=2
+        with self.assertRaises(ValueError) as ctx:
+            db.commit_file_session(
+                uid,
+                sess["session_id"],
+                [{"index": 0, "block_id": blk["block_id"], "size": 500, "stored_on": ["datanode1:50051"]}],
+                min_write_acks=2,
+                db_path=self.db_path,
+            )
+        self.assertIn("confirmations", str(ctx.exception))
+
 
 if __name__ == "__main__":
     unittest.main()
+
+

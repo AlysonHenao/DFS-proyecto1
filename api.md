@@ -80,11 +80,27 @@ Archivos WORM: no se actualizan; para reemplazar, `rm` y luego `put`.
 ```
 `nodes` = réplicas vivas del bloque. El cliente prueba en orden; si una falla, usa la siguiente. Reensambla por `index`.
 
+## Acceso a archivos y versionamiento (RF3)
+
+Semántica Copy-on-Write por bloque y versionamiento a nivel de archivo. Los bloques son inmutables; modificar un archivo genera nuevos bloques solo para los rangos afectados, compartiendo los bloques no modificados entre versiones.
+
+| Método | Ruta | Body / Params | Descripción | Respuesta / Errores |
+|---|---|---|---|---|
+| POST | `/files/open` | `{"path","mode":"r"|"w"|"a","append":bool,"lease_seconds":int}` | Abre sesión de archivo. Modo `'w'` o `'a'` adquiere lock exclusivo y fija `base_version` | `200 {"session_id","base_version","version","size","block_size","lease_seconds"}` · `404` no existe (modo r) · `409` bloqueado por otra sesión |
+| POST | `/files/lock` | `{"session_id","lease_seconds":int}` | Adquiere o renueva lock exclusivo | `200 {"status":"locked","session_id","lease_seconds"}` · `409` conflicto |
+| POST | `/files/lock/renew` | `{"session_id","lease_seconds":int}` | Renueva TTL del lease de la sesión | `200 {"status":"locked","session_id","lease_seconds"}` · `409` conflicto |
+| POST | `/files/unlock` | `{"session_id"}` | Libera explícitamente el lock exclusivo | `200 {"status":"unlocked"}` · `404` sesión |
+| GET | `/files/read/plan?session_id=&offset=&length=` | Query: `session_id`, `offset`, `length` | Plan de lectura por rango para la versión fija de la sesión con nodos vivos y hashes | `200 {"block_size","version","size","blocks":[{"index","block_id","offset","size","nodes","sha256"}]}` · `409` lease vencido |
+| POST | `/files/write/plan` | `{"session_id","offset","length","append":bool}` | Plan de escritura con Copy-On-Write: asigna nuevos bloques y cadena de réplicas solo para los bloques afectados | `200 {"block_size","base_version","blocks":[{"index","block_id","offset","size","chain"}]}` · `409` lock vencido/no retenido · `503` falta de DataNodes |
+| POST | `/files/close` | `{"session_id","blocks":[{"index","block_id","stored_on","sha256"}]}` | Cierre de sesión. En `'w'`/`'a'`, aplica CAS contra `base_version` y valida quórum $W=2$ para publicar la nueva versión | `200 {"status":"closed","version","size"}` · `409` conflicto CAS (versión modificada) o lock vencido · `422` quórum no alcanzado |
+
 ## Cómo se ve el flujo
 
 ```
 put:  CLI → ControlNode leader (login) → put/plan → [CLI → DN1 → DN2] por bloque → put/commit
 get:  CLI → ControlNode leader (login) → get/plan → [CLI ← DNx] por bloque → reensamblar
+rf3 read:  CLI → open(r) → read/plan(offset, length) → [CLI ← DNx] por rango con fallback/sha256 → close
+rf3 write: CLI → open(w, lock exclusivo) → write/plan → [CLI → DN1 → DN2] bloques nuevos → close(CAS + quorum W=2)
 replicacion: ControlNode leader → ControlNode follower (snapshot de metadatos)
 failover: detener leader → promover follower → actualizar DFSHA_CONTROL_URL
 ```
@@ -96,3 +112,4 @@ failover: detener leader → promover follower → actualizar DFSHA_CONTROL_URL
 | Cliente → DataNode | `DataNode.WriteBlock`, `DataNode.ReadBlock` | `authorization: Bearer <JWT>` |
 | DataNode → DataNode | `DataNode.WriteBlock` (cadena y re-replicación) | `x-api-key` |
 | DataNode → ControlNode | `ControlNodeInternal.Heartbeat` (devuelve comandos DELETE/REPLICATE) | `x-api-key` |
+
