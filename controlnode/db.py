@@ -56,8 +56,9 @@ def get_parent_path(path: str) -> str:
 
 def init_db(db_path: str | None = None, schema_path: str = SCHEMA_PATH) -> None:
     """Initializes the SQLite schema and seeds default data if needed."""
+    target_path = db_path if db_path is not None else getattr(config, "DB_PATH", DB_PATH)
     with _LOCK:
-        Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+        Path(target_path).parent.mkdir(parents=True, exist_ok=True)
         if not Path(schema_path).exists():
             raise FileNotFoundError(f"Schema file not found at {schema_path}")
 
