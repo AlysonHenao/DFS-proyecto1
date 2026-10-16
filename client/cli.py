@@ -1,3 +1,4 @@
+import os
 import sys
 
 from auth import AuthSession
@@ -6,7 +7,7 @@ from datanode_client import DataNodeClient
 from transfer import FileTransfer
 
 USAGE = (
-    "usage: client.py register [USERNAME] | login [USERNAME] | ls [PATH] | "
+    "usage: client.py register [USERNAME] [PASSWORD] | login [USERNAME] [PASSWORD] | ls [PATH] | "
     "mkdir PATH | rm PATH | rmdir PATH | "
     "put SOURCE REMOTE_PATH | get REMOTE_PATH DESTINATION | "
     "open REMOTE_PATH [r|w|a] | close SESSION_ID | read SESSION_ID OFFSET LENGTH DESTINATION | "
@@ -24,15 +25,17 @@ def main() -> None:
     auth = AuthSession()
     control = ControlClient(auth)
 
-    if command == "register" and len(sys.argv) in (2, 3):
-        username = sys.argv[2] if len(sys.argv) == 3 else None
-        username, password = auth.credentials(username, confirm=True)
+    if command == "register" and len(sys.argv) in (2, 3, 4):
+        username = sys.argv[2] if len(sys.argv) >= 3 else None
+        password = sys.argv[3] if len(sys.argv) == 4 else None
+        username, password = auth.credentials(username, password, confirm=(password is None and not os.getenv("DFSHA_PASSWORD")))
         result = control.register(username, password)
         print(f"registered: {result['username']}")
         return
-    if command == "login" and len(sys.argv) in (2, 3):
-        username = sys.argv[2] if len(sys.argv) == 3 else None
-        auth.login(username)
+    if command == "login" and len(sys.argv) in (2, 3, 4):
+        username = sys.argv[2] if len(sys.argv) >= 3 else None
+        password = sys.argv[3] if len(sys.argv) == 4 else None
+        auth.login(username, password)
         print("login ok")
         return
 
