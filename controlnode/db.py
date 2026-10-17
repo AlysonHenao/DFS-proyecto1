@@ -669,7 +669,7 @@ def open_file_session(
     path: str,
     mode: str = "r",
     append: bool = False,
-    lease_seconds: int = 60,
+    lease_seconds: int = 300,
     db_path: str | None = None,
 ) -> dict[str, Any]:
     norm_path = normalize_path(path)
