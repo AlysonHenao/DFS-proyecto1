@@ -7,7 +7,7 @@ services:
     environment:
       CONTROLNODE_ID: control-follower
       CONTROLNODE_ROLE: follower
-      CONTROL_PEER_GRPC_ADDR: VM1_PRIVATE_IP:50050
+      CONTROL_PEER_GRPC_ADDR: ${VM1_PRIVATE_IP}:50050
       TLS_CERT: /certs/server.crt
       TLS_KEY: /certs/server.key
       TLS_CA: /certs/ca.crt
@@ -28,8 +28,8 @@ services:
       - control-follower
     environment:
       DATANODE_ID: dn2
-      DATANODE_ADDR: VM2_PRIVATE_IP:50052
-      CONTROL_GRPC_ADDRS: VM1_PRIVATE_IP:50050,VM2_PRIVATE_IP:50050
+      DATANODE_ADDR: ${VM2_PRIVATE_IP}:50052
+      CONTROL_GRPC_ADDRS: ${VM1_PRIVATE_IP}:50050,${VM2_PRIVATE_IP}:50050
       TLS_CERT: /certs/server.crt
       TLS_KEY: /certs/server.key
       TLS_CA: /certs/ca.crt
@@ -49,8 +49,8 @@ services:
       - control-follower
     environment:
       DATANODE_ID: dn3
-      DATANODE_ADDR: VM2_PRIVATE_IP:50053
-      CONTROL_GRPC_ADDRS: VM1_PRIVATE_IP:50050,VM2_PRIVATE_IP:50050
+      DATANODE_ADDR: ${VM2_PRIVATE_IP}:50053
+      CONTROL_GRPC_ADDRS: ${VM1_PRIVATE_IP}:50050,${VM2_PRIVATE_IP}:50050
       TLS_CERT: /certs/server.crt
       TLS_KEY: /certs/server.key
       TLS_CA: /certs/ca.crt
