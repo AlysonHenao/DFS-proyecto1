@@ -9,6 +9,18 @@ $destination = Join-Path $root "smoke-output.txt"
 
 docker compose build control-leader client
 docker compose up -d control-leader datanode1 datanode2
+
+Write-Host "Waiting for control-leader and datanodes..."
+for ($i = 0; $i -lt 15; $i++) {
+    try {
+        $res = Invoke-RestMethod -Uri "http://localhost:8000/health" -TimeoutSec 2 -ErrorAction Stop
+        if ($res.status -eq "ok") { break }
+    } catch {
+        Start-Sleep -Seconds 1
+    }
+}
+Start-Sleep -Seconds 2
+
 docker compose run --rm client mkdir /smoke
 docker compose run --rm client ls /
 docker compose run --rm client put /work/smoke-input.txt /smoke/input.txt
