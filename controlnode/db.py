@@ -650,13 +650,14 @@ def create_snapshot_bytes(db_path: str | None = None) -> bytes:
 
 def restore_from_snapshot_bytes(snapshot_bytes: bytes, db_path: str | None = None) -> None:
     """Restores SQLite database from binary snapshot bytes atomically."""
+    target_path = db_path if db_path is not None else getattr(config, "DB_PATH", DB_PATH)
     with _LOCK:
-        Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+        Path(target_path).parent.mkdir(parents=True, exist_ok=True)
         # Write to temporary file then atomic replace
-        temp_path = f"{db_path}.tmp"
+        temp_path = f"{target_path}.tmp"
         with open(temp_path, "wb") as f:
             f.write(snapshot_bytes)
-        Path(temp_path).replace(db_path)
+        Path(temp_path).replace(target_path)
         LOGGER.info("Successfully restored metadata database from snapshot (%d bytes)", len(snapshot_bytes))
 
 
@@ -1192,4 +1193,3 @@ def clean_expired_locks_and_sessions(db_path: str | None = None) -> tuple[int, i
 
             conn.commit()
             return locks_deleted, len(expired_sessions)
-
