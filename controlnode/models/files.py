@@ -25,7 +25,7 @@ class OpenRequest(BaseModel):
     path: str
     mode: str = "r"
     append: bool = False
-    lease_seconds: int = 60
+    lease_seconds: int = 300
 
 
 class CloseBlock(BaseModel):
@@ -42,7 +42,7 @@ class CloseRequest(BaseModel):
 
 class LockRequest(BaseModel):
     session_id: str
-    lease_seconds: int = 60
+    lease_seconds: int = 300
 
 
 class UnlockRequest(BaseModel):
