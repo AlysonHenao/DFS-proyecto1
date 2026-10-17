@@ -200,11 +200,11 @@ RF3.
 
 ### Ambas personas
 
-- [ ] Prueba de concurrencia: dos clientes escribiendo el mismo archivo
-      (con lock y sin lock) y registro del resultado.
+- [x] Prueba de concurrencia: dos clientes abriendo/escribiendo el mismo archivo
+      (con lock y sin lock) y registro del resultado (HTTP 409 Conflict verificado).
 - [ ] Prueba de falla: caer un DataNode y luego un cliente durante `write`;
       verificar que no queda una versión corrupta ni bloques huérfanos.
-- [ ] Documentar la semántica elegida y su justificación (alimenta el informe).
+- [x] Documentar la semántica elegida y su justificación (alimenta el informe).
 
 ## Seguridad y resiliencia
 
