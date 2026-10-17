@@ -45,8 +45,7 @@ CREATE TABLE IF NOT EXISTS blocks (
     block_id TEXT PRIMARY KEY,
     entry_id INTEGER NOT NULL REFERENCES entries(id) ON DELETE CASCADE,
     idx      INTEGER NOT NULL,             -- posicion del bloque en el archivo (0..n-1)
-    size     INTEGER NOT NULL,             -- bytes (el ultimo puede ser menor al block_size)
-    UNIQUE (entry_id, idx)
+    size     INTEGER NOT NULL              -- bytes (el ultimo puede ser menor al block_size)
 );
 
 -- Donde esta cada bloque. Se llena en put/commit (nodos que confirmaron).
@@ -56,9 +55,65 @@ CREATE TABLE IF NOT EXISTS replicas (
     PRIMARY KEY (block_id, node_id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_entries_owner_path ON entries(owner_id, path);
-CREATE INDEX IF NOT EXISTS idx_blocks_entry       ON blocks(entry_id);
-CREATE INDEX IF NOT EXISTS idx_replicas_node      ON replicas(node_id);
+-- Versiones de archivo para RF3 (Copy-On-Write)
+CREATE TABLE IF NOT EXISTS file_versions (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    entry_id    INTEGER NOT NULL REFERENCES entries(id) ON DELETE CASCADE,
+    version_num INTEGER NOT NULL,
+    size        INTEGER NOT NULL DEFAULT 0,
+    created_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (entry_id, version_num)
+);
+
+CREATE TABLE IF NOT EXISTS version_blocks (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    version_id INTEGER NOT NULL REFERENCES file_versions(id) ON DELETE CASCADE,
+    idx        INTEGER NOT NULL,
+    block_id   TEXT NOT NULL REFERENCES blocks(block_id) ON DELETE CASCADE,
+    offset     INTEGER NOT NULL DEFAULT 0,
+    size       INTEGER NOT NULL,
+    sha256     TEXT,
+    UNIQUE (version_id, idx)
+);
+
+-- Locks exclusivos con lease (TTL)
+CREATE TABLE IF NOT EXISTS file_locks (
+    entry_id    INTEGER PRIMARY KEY REFERENCES entries(id) ON DELETE CASCADE,
+    session_id  TEXT NOT NULL UNIQUE,
+    owner_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    lease_until INTEGER NOT NULL, -- epoch seconds
+    created_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Sesiones activas de archivos para RF3 (open, read, write, lock)
+CREATE TABLE IF NOT EXISTS file_sessions (
+    session_id   TEXT PRIMARY KEY,
+    entry_id     INTEGER NOT NULL REFERENCES entries(id) ON DELETE CASCADE,
+    owner_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    mode         TEXT NOT NULL CHECK (mode IN ('r', 'w', 'a')),
+    base_version INTEGER NOT NULL,
+    lease_until  INTEGER NOT NULL, -- epoch seconds
+    status       TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'committed', 'aborted', 'expired')),
+    created_at   TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Bloques en preparacion para sesiones de escritura no confirmadas
+CREATE TABLE IF NOT EXISTS session_blocks (
+    session_id TEXT NOT NULL REFERENCES file_sessions(session_id) ON DELETE CASCADE,
+    idx        INTEGER NOT NULL,
+    block_id   TEXT NOT NULL REFERENCES blocks(block_id) ON DELETE CASCADE,
+    size       INTEGER NOT NULL,
+    offset     INTEGER NOT NULL,
+    sha256     TEXT,
+    PRIMARY KEY (session_id, idx)
+);
+
+CREATE INDEX IF NOT EXISTS idx_entries_owner_path  ON entries(owner_id, path);
+CREATE INDEX IF NOT EXISTS idx_blocks_entry        ON blocks(entry_id);
+CREATE INDEX IF NOT EXISTS idx_replicas_node       ON replicas(node_id);
+CREATE INDEX IF NOT EXISTS idx_file_versions_entry ON file_versions(entry_id);
+CREATE INDEX IF NOT EXISTS idx_version_blocks_ver  ON version_blocks(version_id);
+CREATE INDEX IF NOT EXISTS idx_file_sessions_owner ON file_sessions(owner_id);
 
 -- ---------------------------------------------------------------------------
 -- Consultas clave (referencia para quien implemente el ControlNode)

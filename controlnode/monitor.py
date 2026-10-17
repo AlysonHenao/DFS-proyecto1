@@ -87,6 +87,10 @@ class ClusterMonitor:
                 target_node["address"],
             )
 
+        # 3. Clean expired locks and sessions (RF3)
+        db.clean_expired_locks_and_sessions()
+
+
     def _replicate_metadata_snapshot(self) -> None:
         if not CONTROL_PEER_GRPC_ADDR:
             return
