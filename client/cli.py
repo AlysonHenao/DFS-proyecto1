@@ -64,6 +64,12 @@ def main() -> None:
         print(session["session_id"])
     elif command == "close" and len(sys.argv) == 3:
         control.close_file(sys.argv[2])
+    elif command == "write" and len(sys.argv) == 5:
+        # sys.argv[2]=session_id, sys.argv[3]=offset, sys.argv[4]=data
+        session_id = sys.argv[2]
+        offset = int(sys.argv[3])
+        data = sys.argv[4]
+        control.write_file(session_id, offset, data)
     elif command == "lock" and len(sys.argv) == 3:
         control.lock_file(sys.argv[2])
     elif command == "unlock" and len(sys.argv) == 3:

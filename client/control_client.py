@@ -121,3 +121,17 @@ class ControlClient:
                 "append": append,
             },
         ).json()
+
+    def write_file(self, session_id: str, offset: int, data: str) -> dict[str, Any]:
+        """Write raw data to an opened session.
+        The data is sent as a UTF‑8 string; the server will store the bytes.
+        """
+        return self.request(
+            "POST",
+            "/files/write",
+            json={
+                "session_id": session_id,
+                "offset": offset,
+                "data": data,
+            },
+        ).json()
