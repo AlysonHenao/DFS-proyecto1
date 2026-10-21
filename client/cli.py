@@ -76,7 +76,7 @@ def main() -> None:
         offset = int(sys.argv[3])
         length = int(sys.argv[4])
         plan = control.plan_write(session_id, offset, length, append=False)
-        import json, sys
+        import json
         json.dump(plan, sys.stdout, indent=2)
         print()
     elif command == "lock" and len(sys.argv) == 3:
