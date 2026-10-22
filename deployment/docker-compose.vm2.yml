@@ -1,0 +1,61 @@
+services:
+  control-follower:
+    build: ../controlnode
+    env_file: ../.env
+    environment:
+      CONTROLNODE_ID: control-follower
+      CONTROLNODE_ROLE: follower
+      CONTROL_PEER_GRPC_ADDR: ${VM1_PRIVATE_IP}:50050
+      TLS_CERT: /certs/server.crt
+      TLS_KEY: /certs/server.key
+      TLS_CA: /certs/ca.crt
+    ports:
+      - "8001:8000"
+      - "50050:50050"
+    volumes:
+      - cn_follower_data:/data
+      - ../certs:/certs:ro
+    restart: unless-stopped
+
+  datanode2:
+    build: ../datanode
+    env_file: ../.env
+    depends_on:
+      - control-follower
+    environment:
+      DATANODE_ID: dn2
+      DATANODE_ADDR: ${VM2_PRIVATE_IP}:50052
+      CONTROL_GRPC_ADDRS: ${VM1_PRIVATE_IP}:50050,${VM2_PRIVATE_IP}:50050
+      TLS_CERT: /certs/server.crt
+      TLS_KEY: /certs/server.key
+      TLS_CA: /certs/ca.crt
+    ports:
+      - "50052:50051"
+    volumes:
+      - dn2_data:/data
+      - ../certs:/certs:ro
+    restart: unless-stopped
+
+  datanode3:
+    build: ../datanode
+    env_file: ../.env
+    depends_on:
+      - control-follower
+    environment:
+      DATANODE_ID: dn3
+      DATANODE_ADDR: ${VM2_PRIVATE_IP}:50053
+      CONTROL_GRPC_ADDRS: ${VM1_PRIVATE_IP}:50050,${VM2_PRIVATE_IP}:50050
+      TLS_CERT: /certs/server.crt
+      TLS_KEY: /certs/server.key
+      TLS_CA: /certs/ca.crt
+    ports:
+      - "50053:50051"
+    volumes:
+      - dn3_data:/data
+      - ../certs:/certs:ro
+    restart: unless-stopped
+
+volumes:
+  cn_follower_data:
+  dn2_data:
+  dn3_data:

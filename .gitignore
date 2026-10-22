@@ -1,0 +1,25 @@
+.env
+.dfsha-session.json
+certs/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+coverage.xml
+
+# Generated protobuf modules
+*_pb2.py
+*_pb2_grpc.py
+
+# Local test artifacts
+prueba.txt
+recuperado.txt
+archivo-grande.bin
+smoke-input.txt
+smoke-output.txt
+
+# Local runtime data
+data/
+*.db
+*.db-shm
+*.db-wal
