@@ -4,6 +4,15 @@ Esta guía detalla el paso a paso para desplegar **DFSha** de forma manual en **
 
 ---
 
+## ¿Qué es DFSha? (A grandes rasgos)
+
+**DFSha** es un sistema de archivos distribuido de alta disponibilidad inspirado en HDFS/GFS:
+- **ControlNode (Metadatos):** Gestiona el árbol de directorios, permisos, sesiones y ubicaciones de bloques en SQLite. Opera en esquema Activo-Pasivo (Líder / Seguidor).
+- **DataNodes (Almacenamiento):** Almacenan bloques de datos en disco cifrados con AES-256-GCM y los replican en cadena vía streaming gRPC.
+- **Cliente CLI:** Interfaz de usuario para autenticarse (JWT) y ejecutar operaciones (`put`, `get`, `ls`, `mkdir`, `rm`, etc.).
+
+---
+
 ## Arquitectura del Despliegue
 
 | Nodo | Componentes / Contenedores | Puertos expuestos en host |
