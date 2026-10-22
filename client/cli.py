@@ -10,7 +10,7 @@ USAGE = (
     "usage: client.py register [USERNAME] [PASSWORD] | login [USERNAME] [PASSWORD] | ls [PATH] | "
     "mkdir PATH | rm PATH | rmdir PATH | "
     "put SOURCE REMOTE_PATH | get REMOTE_PATH DESTINATION | "
-    "open REMOTE_PATH [r|w|a] | close SESSION_ID | read SESSION_ID OFFSET LENGTH DESTINATION | "
+    "open REMOTE_PATH [r|w|a] | close SESSION_ID | read SESSION_ID OFFSET LENGTH DESTINATION | write_plan SESSION_ID OFFSET LENGTH | "
     "lock SESSION_ID | unlock SESSION_ID"
 )
 
@@ -64,6 +64,21 @@ def main() -> None:
         print(session["session_id"])
     elif command == "close" and len(sys.argv) == 3:
         control.close_file(sys.argv[2])
+    elif command == "write" and len(sys.argv) == 5:
+        # sys.argv[2]=session_id, sys.argv[3]=offset, sys.argv[4]=data
+        session_id = sys.argv[2]
+        offset = int(sys.argv[3])
+        data = sys.argv[4]
+        control.write_file(session_id, offset, data)
+    elif command == "write_plan" and len(sys.argv) == 5:
+        # sys.argv[2]=session_id, sys.argv[3]=offset, sys.argv[4]=length
+        session_id = sys.argv[2]
+        offset = int(sys.argv[3])
+        length = int(sys.argv[4])
+        plan = control.plan_write(session_id, offset, length, append=False)
+        import json
+        json.dump(plan, sys.stdout, indent=2)
+        print()
     elif command == "lock" and len(sys.argv) == 3:
         control.lock_file(sys.argv[2])
     elif command == "unlock" and len(sys.argv) == 3:

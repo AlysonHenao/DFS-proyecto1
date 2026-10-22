@@ -1,6 +1,0 @@
-aws_region   = "us-east-1"
-project_name = "dfsha"
-instance_type = "t3.small"
-key_name     = "replace-with-existing-ec2-key-pair"
-ssh_cidr     = "203.0.113.10/32"
-client_cidr  = "203.0.113.10/32"

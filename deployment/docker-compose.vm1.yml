@@ -1,8 +1,6 @@
 services:
   control-leader:
-    build:
-      context: ..
-      dockerfile: controlnode/Dockerfile
+    build: ../controlnode
     env_file: ../.env
     environment:
       CONTROLNODE_ID: control-leader
@@ -20,9 +18,7 @@ services:
     restart: unless-stopped
 
   datanode1:
-    build:
-      context: ..
-      dockerfile: datanode/Dockerfile
+    build: ../datanode
     env_file: ../.env
     depends_on:
       - control-leader
@@ -39,6 +35,16 @@ services:
       - dn1_data:/data
       - ../certs:/certs:ro
     restart: unless-stopped
+
+  client:
+    build: ../client
+    env_file: ../.env
+    environment:
+      DFSHA_CONTROL_URL: http://control-leader:8000
+    profiles: ["tools"]
+    volumes:
+      - ..:/work
+      - ../certs:/certs:ro
 
 volumes:
   cn_leader_data:
