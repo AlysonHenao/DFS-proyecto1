@@ -108,6 +108,7 @@ def main() -> None:
             raise SystemExit(USAGE)
         session = control.open_file(sys.argv[2], mode, mode == "a")
         print(session["session_id"])
+        return
     elif command == "close" and len(sys.argv) == 3:
         sid = sys.argv[2]
         pending = _load_pending_blocks(sid)
